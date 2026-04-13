@@ -7,7 +7,8 @@
 Vanitas Bot/
 ├── code/                   # 所有的源代码
 ├── build/                  # 构建产物
-├── test_cases/             # 本地测试用的数据文件
+├── log/                    # 日志文件（.log)
+├── test_cases/             # 本地测试用的IO文件
 ├── .clang-format
 ├── .editorconfig
 ├── .gitattributes

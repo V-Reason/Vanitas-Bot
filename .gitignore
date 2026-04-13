@@ -79,8 +79,9 @@ out/
 # clangd LSP生成的索引文件
 compile_commands.json
 .clangd/
-# CMake个人配置
-CMakeLists.txt.user
+
+# CMake配置
+CMakeLists.txt
 
 # 依赖管理
 # vcpkg
@@ -93,6 +94,7 @@ conan/
 
 # Botzone 参赛特定
 # 本地测试临时文件
+log/
 *.log
 botzone_config.local.json  # 个人本地调试用的配置
 botzone_test_output/       # 本地批量测试生成的临时目录
