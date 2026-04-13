@@ -1,0 +1,115 @@
+# 系统自动生成的垃圾文件
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.*.swp
+.*.swo
+\#*\#
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.ncb
+*.sdf
+*.dbmdl
+*.vc.db
+*.vc.opendb
+*.vcxproj.user       # VS2017+个人项目配置
+*.vcxproj.filters.user # VS2017+个人筛选器配置
+*.sln.docstates      # VS文档状态
+Debug/
+Release/
+x64/
+x86/
+
+
+# C/C++编译产物
+# Linux/macOS
+*.o
+*.out
+*.a
+*.so
+*.dylib
+*.elf
+*.d
+*.lo
+*.slo
+
+# Windows
+*.exe
+*.obj
+*.dll
+*.lib
+*.ilk
+*.pdb
+*.exp
+*.idb
+
+
+# 构建和输出目录
+build/
+cmake-build-*/  # VSCode CMake Tools默认构建目录
+bin/
+out/
+
+# C/C++编译缓存
+*.cache
+.ccache/
+# clangd LSP生成的索引文件
+compile_commands.json
+.clangd/
+# CMake个人配置
+CMakeLists.txt.user
+
+# 依赖管理
+# vcpkg
+vcpkg_installed/
+vcpkg/
+
+# Conan
+.conan/
+conan/
+
+# Botzone 参赛特定
+# 本地测试临时文件
+*.log
+botzone_config.local.json  # 个人本地调试用的配置
+botzone_test_output/       # 本地批量测试生成的临时目录
+
+# 打包文件
+*.zip
+*.tar.gz
+*.rar
+
+# 只忽略临时的txt/json
+*.tmp.txt
+*.tmp.json
+*.local.json
+
+# 批量测试用例统一放test_cases/目录，不要散放根目录
+test_cases/*.txt.tmp
+test_cases/*.json.tmp
+!test_cases/               # 保留test_cases目录本身
+!test_cases/*.txt          # 保留所有正式测试用例
+!test_cases/*.json         # 保留所有正式测试用例

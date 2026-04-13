@@ -1,0 +1,39 @@
+# 核心规则：所有文本文件提交时转为LF，检出时按系统默认
+* text=auto eol=lf
+
+# 特殊文件：强制指定换行符
+# Windows批处理文件必须用CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Linux Shell脚本必须用LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Visual Studio项目文件必须用CRLF
+*.sln text eol=crlf
+*.vcxproj text eol=crlf
+*.vcxproj.filters text eol=crlf
+
+# Makefile必须用LF
+Makefile text eol=lf
+*.mk text eol=lf
+
+# 二进制文件：不处理换行符，直接原样提交
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.exe binary
+*.dll binary
+*.lib binary
+*.a binary
+*.so binary
+*.dylib binary
+*.wav binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.bin binary

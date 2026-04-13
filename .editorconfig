@@ -1,0 +1,77 @@
+root = true
+
+# 通用规则
+[*]
+charset = utf-8                          # 统一用UTF-8字符集，避免中文乱码
+end_of_line = lf                         # 统一用LF换行符（和.gitattributes保持一致）
+insert_final_newline = true              # 文件末尾强制加一个空行（Git和C/C++标准推荐）
+trim_trailing_whitespace = true          # 自动删除行尾空格（避免无意义的Git diff）
+
+# C/C++代码：核心开发文件
+[*.{c,cpp,h,hpp,cc,hh,cxx,hxx}]
+indent_style = space                     # 用空格缩进（跨平台比Tab更一致）
+indent_size = 4                          # 4空格缩进（C/C++工业界常用）
+max_line_length = 120                    # 最大行宽120字符（配合.clang-format）
+
+# CMake构建文件
+[CMakeLists.txt]
+indent_style = space
+indent_size = 2                          # CMake常用2空格缩进
+
+[*.cmake]
+indent_style = space
+indent_size = 2
+
+[*.cmake.in]
+indent_style = space
+indent_size = 2
+
+# Makefile
+[Makefile]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+end_of_line = lf
+
+[*.mk]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+end_of_line = lf
+
+# 配置文件：JSON/YAML/XML
+[*.{json,jsonc}]
+indent_style = space
+indent_size = 2                          # JSON常用2空格缩进
+
+[*.{yaml,yml}]
+indent_style = space
+indent_size = 2                          # YAML必须用2空格缩进
+
+[*.{xml,vcxproj,sln}]
+indent_style = space
+indent_size = 2
+
+# 文档：Markdown
+[*.md]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+trim_trailing_whitespace = false        # Markdown行尾空格表示换行，不要删
+
+# Windows批处理：强制CRLF
+[*.{bat,cmd}]
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+
+# Linux Shell：强制LF
+[*.{sh,bash}]
+end_of_line = lf
+indent_style = space
+indent_size = 4
+
+[*.{vcxproj,vcxproj.filters,sln}]
+end_of_line = crlf
+indent_style = space
+indent_size = 2
