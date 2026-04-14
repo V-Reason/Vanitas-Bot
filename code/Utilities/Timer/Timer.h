@@ -16,10 +16,13 @@ class Timer {
     // Timer全局单例模式
     Timer() = default;
     ~Timer() = default;
+    // 记录初始化时间
+    static TimePoint startTime;
 
    public:
     // Timer全局单例模式
     Timer(const Timer&) = delete;
+    // 实现定时器的单例模式
     static Timer& instance();
 
     // 记录程序开始时间戳
