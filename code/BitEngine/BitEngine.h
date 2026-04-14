@@ -10,9 +10,19 @@ namespace VanitasBot::BitEngine {
 using Move = uint32_t;
 using Bitmap = uint64_t;
 
-// 玩家定义
-constexpr int PLAYER_BLACK = 1;
-constexpr int PLAYER_WHITE = -1;
+// 已知信息
+constexpr int AMAZON_BOARD_LENGTH = 8;            // 棋盘长度
+constexpr int MAX_AMAZON_MOVE_TYPE = 5112 + 388;  // 5112为理论极限值，388为设计冗余量
+// constexpr Bitmap BEGIN_BLACKS_POSITION =
+//     makeMask(XYToBit(2,0))
+//     | makeMask(XYToBit(5,0))
+//     | makeMask(XYToBit(0,2))
+//     | makeMask(XYToBit(7,2));
+// constexpr Bitmap BEGIN_WHITES_POSITION =
+//     makeMask(XYToBit(0,5))
+//     | makeMask(XYToBit(7,5))
+//     | makeMask(XYToBit(2,7))
+//     | makeMask(XYToBit(5,7));
 
 // 边界掩码
 enum class MapMask : Bitmap {
@@ -46,22 +56,39 @@ enum class Offset : int {
 };
 
 // 方向走步_宏函数
-#define MOVE_TO_S(pos) (((pos) >> Offset::toFILE))
-#define MOVE_TO_W(pos) (((pos) >> Offset::toRANK) & MapMask::NO_LEFT)
-#define MOVE_TO_SW(pos) (((pos) >> Offset::toDIAGONAL) & MapMask::NO_LEFT)
-#define MOVE_TO_SE(pos) (((pos) >> Offset::toANTI_DIAGONAL) & MapMask::NO_RIGHT)
+#define MOVE_TO_N(pos) (((pos) << static_cast<int>(Offset::toFILE)))
+#define MOVE_TO_E(pos) (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+#define MOVE_TO_NE(pos) (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+#define MOVE_TO_NW(pos) (((pos) << static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
 
-#define MOVE_TO_N(pos) (((pos) << Offset::toFILE))
-#define MOVE_TO_E(pos) (((pos) << Offset::toRANK) & MapMask::NO_RIGHT)
-#define MOVE_TO_NE(pos) (((pos) << Offset::toDIAGONAL) & MapMask::NO_RIGHT)
-#define MOVE_TO_NW(pos) (((pos) << Offset::toANTI_DIAGONAL) & MapMask::NO_LEFT)
+#define MOVE_TO_S(pos) (((pos) >> static_cast<int>(Offset::toFILE)))
+#define MOVE_TO_W(pos) (((pos) >> static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+#define MOVE_TO_SW(pos) (((pos) >> static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+#define MOVE_TO_SE(pos) (((pos) >> static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+
+// bit元操作
+inline void setBit(Bitmap& bitmap, Bitmap& mask) {
+    bitmap |= mask;
+}
+inline void clsBit(Bitmap& bitmap, Bitmap& mask) {
+    bitmap &= ~mask;
+}
+inline bool chkBit(Bitmap& bitmap, Bitmap& mask) {
+    return bitmap & mask;
+}
+
+// 玩家枚举
+enum class Player {
+    BLACK = -1,
+    WHITE = 1,
+};
 
 // 全局信息
 struct BitBoard {
-    Bitmap blacks;
-    Bitmap whites;
-    Bitmap arrows;
-    int player;
+    Bitmap blacks;  // 黑方棋子
+    Bitmap whites;  // 白方棋子
+    Bitmap arrows;  // 箭矢
+    Player player;  // 玩家颜色
 
     inline Bitmap allPieces() const;
     inline Bitmap allBlocked() const;
@@ -75,6 +102,13 @@ inline void bitToXY(int bit, int& out_x, int& out_y);
 // 根据偏移位生成mask信息
 inline Bitmap makeMask(int offset_bit);
 
+// 以int信息生成Move
+inline Move makeMove(int from, int to, int arrow);
+// 从Move取出int信息
+inline int getFrom(Move m);
+inline int getTo(Move m);
+inline int getArrow(Move m);
+
 // 生成皇后八向标记
 Bitmap generateQueenMoves(Bitmap from, Bitmap blocked);
 
@@ -87,6 +121,12 @@ void applyMove(BitBoard& board, Move move);
 // 取消Move，相当于悔子
 void resetMove(BitBoard& board, Move move);
 
+// 切换玩家
+inline void SwitchPlayer(BitBoard& board);
+// 添加障碍
+inline void addArrow(BitBoard& board, Bitmap arrow);
+// 删除障碍
+inline void delArrow(BitBoard& board, Bitmap arrow);
 }  // namespace VanitasBot::BitEngine
 
 #endif
