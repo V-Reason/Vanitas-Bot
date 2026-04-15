@@ -14,10 +14,12 @@ using Time_ms = std::chrono::milliseconds;
 class Timer {
    private:
     // Timer全局单例模式
-    Timer() = default;
+    Timer();
     ~Timer() = default;
     // 记录初始化时间
-    static TimePoint startTime;
+    TimePoint startTime;
+    // 超时时间（初始为一秒）
+    Time_ms timeout;
 
    public:
     // Timer全局单例模式
@@ -26,11 +28,15 @@ class Timer {
     static Timer& instance();
 
     // 记录程序开始时间戳
-    static inline void startTimer();
+    inline void startTimer();
     // 获得现在时间戳
-    static inline TimePoint getNowTimePoint();
+    inline TimePoint getNowTimePoint();
     // 获得过去的时间(ms)
-    static inline Time_ms getPassedTime();
+    inline Time_ms getPassedTime();
+    // 设置超时时间
+    inline void setTimeout(Time_ms timeout);
+    // 检查是否超时
+    inline bool isTimeout();
 };
 }  // namespace VanitasBot::Utilities
 #endif

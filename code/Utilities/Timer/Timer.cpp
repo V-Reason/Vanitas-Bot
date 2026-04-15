@@ -5,7 +5,7 @@
 
 namespace VanitasBot::Utilities {
 
-Timer::TimePoint Timer::startTime = Clock::now();
+Timer::Timer(): startTime(Clock::now()), timeout(Time_ms(1000)) {}
 
 Timer& Timer::instance() {
     static Timer timer;
@@ -23,6 +23,14 @@ inline Timer::TimePoint Timer::getNowTimePoint() {
 inline Timer::Time_ms Timer::getPassedTime() {
     auto now = Clock::now();
     return std::chrono::duration_cast<Time_ms>(now - startTime);
+}
+
+inline void Timer::setTimeout(Time_ms timeout) {
+    this->timeout = timeout;
+}
+
+inline bool Timer::isTimeout() {
+    return getPassedTime() >= timeout;
 }
 
 }  // namespace VanitasBot::Utilities
