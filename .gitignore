@@ -80,8 +80,9 @@ out/
 compile_commands.json
 .clangd/
 
-# CMake配置
-CMakeLists.txt
+# CMake的个人用户配置
+CMakeLists.txt.user
+CMakeLists.txt.user.*
 
 # 依赖管理
 # vcpkg
