@@ -27,7 +27,7 @@ class Timer {
     // 获得现在时间戳
     static inline TimePoint getNowTimePoint();
     // 获得过去的时间(ms)
-    static inline Time_ms getPassedTime();
+    static inline int getPassedTime();
 };
 }  // namespace VanitasBot::Utilities
 #endif

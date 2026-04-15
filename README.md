@@ -1,6 +1,9 @@
 # Vanitas Bot
 > Vanitas Vanitatum Et Omnia Vanitas.
 
+## 注意
+- 项目必须使用 **C++20** 及以上标准
+
 ## 项目结构
 > 严格遵循，方便打包
 ```txt
