@@ -33,29 +33,29 @@ class Timer {
     }
 
     // 记录程序开始时间戳
-    void startTimer() {
+    inline void startTimer() {
         startTime = Clock::now();
     }
 
     // 获得现在时间戳
-    TimePoint getNowTimePoint() {
+    inline TimePoint getNowTimePoint() {
         return Clock::now();
     }
 
     // 获得过去的时间(ms)
-    Time_ms getPassedTime() {
+    inline int getPassedTime() {
         auto now = Clock::now();
-        return std::chrono::duration_cast<Time_ms>(now - startTime);
+        return std::chrono::duration_cast<Time_ms>(now - startTime).count();
     }
 
     // 设置超时时间
-    void setTimeout(Time_ms timeout) {
+    inline void setTimeout(Time_ms timeout) {
         this->timeout = timeout;
     }
 
     // 检查是否超时
-    bool isTimeout() {
-        return getPassedTime() >= timeout;
+    inline bool isTimeout() {
+        return getPassedTime() >= timeout.count();
     }
 };
 }  // namespace VanitasBot::Utilities
