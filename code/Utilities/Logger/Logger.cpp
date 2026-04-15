@@ -1,4 +1,6 @@
-#include "code/Utilities/Logger/Logger.h"
+#ifdef _DEBUG
+
+#include "Logger.h"
 namespace VanitasBot::Utilities {
 class Logger {
    public:
@@ -56,3 +58,5 @@ class Logger {
     }
 };
 }  // namespace VanitasBot::Utilities
+
+#endif

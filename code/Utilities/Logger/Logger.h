@@ -1,12 +1,11 @@
-#pragma once
-
 // 保证发布版不存在
 #ifdef _DEBUG
+#pragma once
 
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include "../../BitEngine/BitEngine.h"
+#include "BitEngine/BitEngine.h"
 
 #include <iostream>
 

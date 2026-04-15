@@ -2,7 +2,7 @@
 #ifndef IO_ENGINE_H
 #define IO_ENGINE_H
 
-#include "../BitEngine/BitEngine.h"
+#include "BitEngine/BitEngine.h"
 
 namespace VanitasBot::IOEngine {
 // 初始化IO配置
