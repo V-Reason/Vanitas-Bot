@@ -1,5 +1,3 @@
-// 保证发布版不存在
-#ifdef _DEBUG
 #pragma once
 
 #ifndef LOGGER_H
@@ -19,7 +17,5 @@ class Logger {
     static void showBitboard(BitEngine::BitBoard board);
 };
 }  // namespace VanitasBot::Utilities
-
-#endif
 
 #endif

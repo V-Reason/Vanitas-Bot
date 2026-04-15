@@ -116,3 +116,6 @@ test_cases/*.json.tmp
 !test_cases/               # 保留test_cases目录本身
 !test_cases/*.txt          # 保留所有正式测试用例
 !test_cases/*.json         # 保留所有正式测试用例
+
+# shell脚本生成产物
+collected_files/
