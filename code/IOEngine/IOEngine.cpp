@@ -29,30 +29,20 @@ void initBoard(BitEngine::BitBoard& board) {
     BitEngine::setBit(board.whites, BitEngine::makeMask(BitEngine::XYToIndex(5, 7)));
 }
 
-// 读取输入并恢复棋盘状态
-void readInputAndRecover(BitEngine::BitBoard& board) {
-    int turnID;
-    scanf("%d", &turnID);
+// 将int[][]类型的棋盘转换为BitEngine::BitBoard类型
+void readInputAndRecover(const int gridInfo[8][8], BitEngine::BitBoard& board) {
+    board.blacks = 0;
+    board.whites = 0;
+    board.arrows = 0;
 
-    int x0, y0, x1, y1, x2, y2;
-    board.player = BitEngine::Player::WHITE;
-
-    for (int i = 0; i < turnID; i++) {
-        scanf("%d %d %d %d %d %d", &x0, &y0, &x1, &y1, &x2, &y2);
-        if (x0 == -1) {
-            board.player = BitEngine::Player::BLACK;
-        } else {
-            BitEngine::Move opponentMove = BitEngine::makeMove(
-                BitEngine::XYToIndex(x0, y0), BitEngine::XYToIndex(x1, y1), BitEngine::XYToIndex(x2, y2));
-            BitEngine::applyMove(board, opponentMove);
-        }
-
-        if (i < turnID - 1) {
-            scanf("%d %d %d %d %d %d", &x0, &y0, &x1, &y1, &x2, &y2);
-            if (x0 >= 0) {
-                BitEngine::Move myMove = BitEngine::makeMove(BitEngine::XYToIndex(x0, y0), BitEngine::XYToIndex(x1, y1),
-                                                             BitEngine::XYToIndex(x2, y2));
-                BitEngine::applyMove(board, myMove);
+    for (int x = 0; x < 8; x++) {
+        for (int y = 0; y < 8; y++) {
+            if (gridInfo[x][y] == 1) {
+                BitEngine::setBit(board.blacks, BitEngine::makeMask(BitEngine::XYToIndex(x, y)));
+            } else if (gridInfo[x][y] == -1) {
+                BitEngine::setBit(board.whites, BitEngine::makeMask(BitEngine::XYToIndex(x, y)));
+            } else if (gridInfo[x][y] == 2) {
+                BitEngine::setBit(board.arrows, BitEngine::makeMask(BitEngine::XYToIndex(x, y)));
             }
         }
     }
