@@ -101,7 +101,11 @@ inline Index fnlBit(Bitmap mask) {  // 取最低位 1 的Index
 #endif
 }
 inline void kicBit(Bitmap& bitmap) {  // 剔除最后一位bit
+#if defined(_MSC_VER) && defined(__AVX__)
+    bitmap = _blsr_u64(bitmap);
+#else
     bitmap &= (bitmap - 1);
+#endif
 }
 inline int cntBit(Bitmap mask) {  // 计算1的个数
 #if defined(_MSC_VER)
