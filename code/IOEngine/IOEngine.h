@@ -6,18 +6,35 @@
 
 namespace VanitasBot::IOEngine {
 
+// 历史记录结构
+struct HistoryState {
+    BitEngine::BitBoard board;
+    BitEngine::Move move;
+};
+
 // 初始化IO配置
 void initIOEngine();
 
 // 初始化棋盘
 void initBoard(BitEngine::BitBoard& board);
 
-// 将int[][]类型的棋盘转换为BitEngine::BitBoard类型
-void readInputAndRecover(const int gridInfo[8][8], BitEngine::BitBoard& board);
+// 读取输入并应用最新走法到棋盘，保存到历史记录
+void readInputAndRecover(BitEngine::BitBoard& board);
 
-// 输出答案
-void OutputAnswer(BitEngine::Move chosenMove, int& startX, int& startY, int& resultX, int& resultY, int& obstacleX,
-                  int& obstacleY);
+// 输出答案，直接输出Move的六个坐标
+void OutputAnswer(BitEngine::Move chosenMove);
+
+// 保存当前状态到历史栈
+void pushHistory(const BitEngine::BitBoard& board, BitEngine::Move move);
+
+// 从历史栈恢复状态
+void popHistory(BitEngine::BitBoard& board);
+
+// 清空历史栈
+void clearHistory();
+
+// 获取历史栈深度
+int getHistoryDepth();
 
 }  // namespace VanitasBot::IOEngine
 
