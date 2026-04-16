@@ -2,60 +2,79 @@
 
 namespace VanitasBot::BitEngine {
 
+// [ 已弃用 / 备选 ]
+// 射线投射法 Ray-Casting
+// Bitmap generateQueenMoves(Bitmap from, Bitmap blocked) {
+//     // 所有可移动到的点
+//     Bitmap moves = 0;
+//     for (auto dir : ALL_DIRECTIONS) {
+//         // 当前所在点
+//         Bitmap curr = from;
+//         while (true) {
+//             // 向所选方向射线“滑行”
+//             switch (dir) {
+//                 case Dirtion::N:
+//                     curr = MOVE_TO_N(curr);
+//                     break;
+//                 case Dirtion::E:
+//                     curr = MOVE_TO_E(curr);
+//                     break;
+//                 case Dirtion::NE:
+//                     curr = MOVE_TO_NE(curr);
+//                     break;
+//                 case Dirtion::NW:
+//                     curr = MOVE_TO_NW(curr);
+//                     break;
+
+//                 case Dirtion::S:
+//                     curr = MOVE_TO_S(curr);
+//                     break;
+//                 case Dirtion::W:
+//                     curr = MOVE_TO_W(curr);
+//                     break;
+//                 case Dirtion::SW:
+//                     curr = MOVE_TO_SW(curr);
+//                     break;
+//                 case Dirtion::SE:
+//                     curr = MOVE_TO_SE(curr);
+//                     break;
+
+//                 default:
+//                     break;
+//             }  // end Switch
+//             // 超出边界,或者撞到障碍，不记录
+//             if (curr == 0 || (curr & blocked))
+//                 break;
+
+//             moves |= curr;  // 合规，记录
+//         }  // end while
+//     }  // end for
+
+//     // 返回合成图
+//     return moves;
+// }
+
+// 并行计算法 Kogge-Stone
+// 皇后作为进位信号源Gen，空地作为传播信号Pro
 Bitmap generateQueenMoves(Bitmap from, Bitmap blocked) {
-    // 所有可移动到的点
-    Bitmap moves = 0;
-    for (auto dir : ALL_DIRECTIONS) {
-        // 当前所在点
-        Bitmap curr = from;
-        while (true) {
-            // 向所选方向射线“滑行”
-            switch (dir) {
-                case Dirtion::N:
-                    curr = MOVE_TO_N(curr);
-                    break;
-                case Dirtion::E:
-                    curr = MOVE_TO_E(curr);
-                    break;
-                case Dirtion::NE:
-                    curr = MOVE_TO_NE(curr);
-                    break;
-                case Dirtion::NW:
-                    curr = MOVE_TO_NW(curr);
-                    break;
+    Bitmap empty = ~blocked;  // 可通行的空地
 
-                case Dirtion::S:
-                    curr = MOVE_TO_S(curr);
-                    break;
-                case Dirtion::W:
-                    curr = MOVE_TO_W(curr);
-                    break;
-                case Dirtion::SW:
-                    curr = MOVE_TO_SW(curr);
-                    break;
-                case Dirtion::SE:
-                    curr = MOVE_TO_SE(curr);
-                    break;
+    // 八个方向并行计算
+    Bitmap moves = koggeStone_N(from, empty) | koggeStone_S(from, empty) | koggeStone_E(from, empty) |
+                   koggeStone_W(from, empty) | koggeStone_NE(from, empty) | koggeStone_NW(from, empty) |
+                   koggeStone_SE(from, empty) | koggeStone_SW(from, empty);
 
-                default:
-                    break;
-            }  // end Switch
-            // 超出边界,或者撞到障碍，不记录
-            if (curr == 0 || (curr & blocked))
-                break;
-
-            moves |= curr;  // 合规，记录
-        }  // end while
-    }  // end for
-
-    // 返回合成图
-    return moves;
+    return moves & empty;  // 确保只能落子在空地上
 }
 
-std::vector<Move> generateAllMoves(const BitBoard& board) {
-    // 缓存
-    std::vector<Move> moves;
-    moves.reserve(MAX_AMAZON_MOVE_TYPE);  // 约21.48KB，0.022MB
+// std::vector<Move> generateAllMoves(const BitBoard& board) {
+void generateAllMoves(const BitBoard& board, MoveList& out_list) {
+    // [ 已经改用静态内存MoveList ]
+    // // 缓存
+    // std::vector<Move> moves;
+    // moves.reserve(MAX_AMAZON_MOVE_TYPE);  // 约21.48KB，0.022MB
+
+    out_list.clear();  // 清空重置内存
 
     // 确定当前局面
     Bitmap my_amazons = (board.player == Player::BLACK) ? board.blacks : board.whites;
@@ -93,13 +112,14 @@ std::vector<Move> generateAllMoves(const BitBoard& board) {
                 kicBit(arrows_pieces);
 
                 // 生成完整动作
-                moves.push_back(makeMove(from_idx, to_idx, arrow_idx));
+                // moves.push_back(makeMove(from_idx, to_idx, arrow_idx));
+                out_list.push(makeMove(from_idx, to_idx, arrow_idx));
             }
         }
     }
 
-    // 返回单图图集
-    return moves;
+    // // 返回单图图集
+    // return moves;
 }
 
 void applyMove(BitBoard& board, Move move) {
