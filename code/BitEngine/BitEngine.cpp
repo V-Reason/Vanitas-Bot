@@ -98,9 +98,10 @@ void generateAllMoves(const BitBoard& board, MoveList& out_list) {
             Bitmap once_to = makeMask(to_idx);
             kicBit(targets_pieces);
             // 移动
-            Bitmap new_blocked = blocked;
-            clsBit(new_blocked, from);
-            setBit(new_blocked, once_to);
+            // Bitmap new_blocked = blocked;
+            // clsBit(new_blocked, from);
+            // setBit(new_blocked, once_to);
+            Bitmap new_blocked = (blocked ^ from) | once_to;  // 简化了代码
             // 射箭
             Bitmap all_arrows = generateQueenMoves(once_to, new_blocked);
 

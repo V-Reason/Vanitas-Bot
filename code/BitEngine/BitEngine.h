@@ -6,7 +6,6 @@
 // #include <bit>
 
 #include <cstdint>
-#include <vector>
 
 // 兼容MSVC和GCC
 #if defined(_MSC_VER)
@@ -166,7 +165,7 @@ inline Bitmap makeMask(Index index) {
 
 // 以int信息生成Move
 inline Move makeMove(Index from, Index to, Index arrow) {
-    return (Move)from | (Move)to << 7 | (Move)arrow << 14;
+    return ((Move)from) | ((Move)to << 7) | ((Move)arrow << 14);
 }
 // 从Move取出int信息
 inline Index getFrom(Move m) {
