@@ -30,6 +30,9 @@ void pushHistory(const BitEngine::BitBoard& board, BitEngine::Move move);
 // 从历史栈恢复状态
 void popHistory(BitEngine::BitBoard& board);
 
+// 根据回合数回溯历史
+void rollbackToTurn(BitEngine::BitBoard& board, int turn);
+
 // 清空历史栈
 void clearHistory();
 
