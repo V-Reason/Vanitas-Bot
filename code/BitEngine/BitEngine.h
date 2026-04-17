@@ -90,7 +90,7 @@ inline void setBit(Bitmap& bitmap, Bitmap mask) {  // 设置bit
 inline void clsBit(Bitmap& bitmap, Bitmap mask) {  // 清理bit
     bitmap &= ~mask;
 }
-inline void movBit(Bitmap& bitmap, Bitmap from, Bitmap to) {
+inline void movBit(Bitmap& bitmap, Bitmap from, Bitmap to) {  // 移动bit，注意，只能移动值为 1 的bit
     bitmap ^= (from | to);
 }
 inline bool chkBit(Bitmap& bitmap, Bitmap mask) {  // 检测bit
