@@ -10,7 +10,7 @@ Standard: c++17
 IndentWidth: 4                          # 4空格缩进（和.editorconfig保持一致）
 TabWidth: 4                             # Tab宽度4空格
 UseTab: Never                           # 永远不用Tab，只用空格
-ColumnLimit: 120                        # 最大行宽120字符（和.editorconfig保持一致）
+ColumnLimit: 100                        # 最大行宽80字符（和.editorconfig保持一致）
 
 # 指针/引用对齐：
 # 类型左边（int* p; 而不是 int *p; 或 int * p;）
@@ -35,6 +35,15 @@ AllowShortBlocksOnASingleLine: Empty    # 只有空块允许写在一行
 AllowShortFunctionsOnASingleLine: Empty # 只有空函数允许写在一行
 AllowShortIfStatementsOnASingleLine: Never # 永远不把if写在一行
 AllowShortLoopsOnASingleLine: false     # 永远不把循环写在一行
+
+# 函数参数换行：过长就【每行一个】（对应 chop_if_long）
+BinPackArguments: false
+BinPackParameters: false
+# 文件末尾自动加空行（对应 insert_final_newline=true）
+InsertNewlineAtEOF: true
+
+# 长表达式/公式/判断条件：在 运算符前 自动换行（&& || + - * / 等）
+BreakBeforeBinaryOperators: All
 
 # 命名空间缩进：不缩进命名空间里的内容
 NamespaceIndentation: None

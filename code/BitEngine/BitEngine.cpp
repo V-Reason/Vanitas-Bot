@@ -60,9 +60,9 @@ Bitmap generateQueenMoves(Bitmap from, Bitmap blocked) {
     Bitmap empty = ~blocked;  // 可通行的空地
 
     // 八个方向并行计算
-    Bitmap moves = koggeStone_N(from, empty) | koggeStone_S(from, empty) | koggeStone_E(from, empty) |
-                   koggeStone_W(from, empty) | koggeStone_NE(from, empty) | koggeStone_NW(from, empty) |
-                   koggeStone_SE(from, empty) | koggeStone_SW(from, empty);
+    Bitmap moves = koggeStone_N(from, empty) | koggeStone_S(from, empty) | koggeStone_E(from, empty)
+                   | koggeStone_W(from, empty) | koggeStone_NE(from, empty) | koggeStone_NW(from, empty)
+                   | koggeStone_SE(from, empty) | koggeStone_SW(from, empty);
 
     return moves & empty;  // 确保只能落子在空地上
 }
@@ -132,8 +132,8 @@ void applyMove(BitBoard& board, Move move) {
     // 更新局面hash值
     // HashEngine::Element player =
     //     (board.player == Player::BLACK) ? HashEngine::Element::PLAYER_BLACK : HashEngine::Element::PLAYER_WHITE;
-    board.hash =
-        HashEngine::updataHash(board.hash, static_cast<HashEngine::Element>(board.player), from_inx, to_inx, arrow_inx);
+    board.hash = HashEngine::updataHash(
+        board.hash, static_cast<HashEngine::Element>(board.player), from_inx, to_inx, arrow_inx);
     // player在数值上通过约定保证正确
 
     // 数据bit化
@@ -186,8 +186,8 @@ void resetMove(BitBoard& board, Move move) {
     // 更新局面hash值
     // HashEngine::Element player =
     //     (board.player == Player::BLACK) ? HashEngine::Element::PLAYER_BLACK : HashEngine::Element::PLAYER_WHITE;
-    board.hash = HashEngine::updataHash(board.hash, static_cast<HashEngine::Element>(board.player), ori_from_inx,
-                                        ori_to_inx, ori_arrow_inx);
+    board.hash = HashEngine::updataHash(
+        board.hash, static_cast<HashEngine::Element>(board.player), ori_from_inx, ori_to_inx, ori_arrow_inx);
     // player在数值上通过约定保证正确
 }
 

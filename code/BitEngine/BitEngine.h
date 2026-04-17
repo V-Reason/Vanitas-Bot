@@ -24,7 +24,7 @@ using Bitmap = uint64_t;
 // 已知信息
 constexpr int AMAZON_BOARD_LENGTH = 8;                                      // 棋盘长度
 const int AMAZON_BOARD_SQUARE = AMAZON_BOARD_LENGTH * AMAZON_BOARD_LENGTH;  // 棋盘格子数
-constexpr int MAX_AMAZON_MOVE_TYPE = 5112 + 388;                            // 5112为理论极限值，388为设计冗余量
+constexpr int MAX_AMAZON_MOVE_TYPE = 5112 + 388;  // 5112为理论极限值，388为设计冗余量
 // constexpr Bitmap BEGIN_BLACKS_POSITION =
 //     makeMask(XYToBit(2,0))
 //     | makeMask(XYToBit(5,0))
@@ -57,31 +57,36 @@ enum class MapMask : Bitmap {
 //     NE = 9    // 东北
 // };
 // constexpr Dirtion ALL_DIRECTIONS[] = {
-//     Dirtion::SW, Dirtion::S, Dirtion::SE, Dirtion::W, Dirtion::E, Dirtion::NW, Dirtion::N, Dirtion::NE,
+//     Dirtion::SW, Dirtion::S, Dirtion::SE, Dirtion::W, Dirtion::E,
+//     Dirtion::NW, Dirtion::N, Dirtion::NE,
 // };  // 用于遍历
 
-// // 斜向枚举
-// enum class Offset : int {
-//     toRANK = 1,           // 用于水平
-//     toANTI_DIAGONAL = 7,  // 用于反对角线
-//     toFILE = 8,           // 用于竖直
-//     toDIAGONAL = 9        // 用于对角线
-// };
+// 斜向枚举
+enum class Offset : int {
+    toRANK = 1,           // 用于水平
+    toANTI_DIAGONAL = 7,  // 用于反对角线
+    toFILE = 8,           // 用于竖直
+    toDIAGONAL = 9        // 用于对角线
+};
 
-// [ 已弃用 / 备选 ]
+// [ 已弃用 / 备选 ] -> [ 再启动 / 国王用]
 // 射线投射法 Ray-Casting
 // 方向走步_宏函数
-// #define MOVE_TO_N(pos) (((pos) << static_cast<int>(Offset::toFILE)))
-// #define MOVE_TO_E(pos) (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
-// #define MOVE_TO_NE(pos) (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
-// #define MOVE_TO_NW(pos) (((pos) << static_cast<int>(Offset::toANTI_DIAGONAL)) &
-// static_cast<Bitmap>(MapMask::NO_LEFT))
+#define MOVE_TO_N(pos) (((pos) << static_cast<int>(Offset::toFILE)))
+#define MOVE_TO_E(pos) \
+    (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+#define MOVE_TO_NE(pos) \
+    (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+#define MOVE_TO_NW(pos) \
+    (((pos) << static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
 
-// #define MOVE_TO_S(pos) (((pos) >> static_cast<int>(Offset::toFILE)))
-// #define MOVE_TO_W(pos) (((pos) >> static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_LEFT))
-// #define MOVE_TO_SW(pos) (((pos) >> static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
-// #define MOVE_TO_SE(pos) (((pos) >> static_cast<int>(Offset::toANTI_DIAGONAL)) &
-// static_cast<Bitmap>(MapMask::NO_RIGHT))
+#define MOVE_TO_S(pos) (((pos) >> static_cast<int>(Offset::toFILE)))
+#define MOVE_TO_W(pos) \
+    (((pos) >> static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+#define MOVE_TO_SW(pos) \
+    (((pos) >> static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+#define MOVE_TO_SE(pos) \
+    (((pos) >> static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
 
 // bit元操作
 inline void setBit(Bitmap& bitmap, Bitmap mask) {  // 设置bit
@@ -90,7 +95,8 @@ inline void setBit(Bitmap& bitmap, Bitmap mask) {  // 设置bit
 inline void clsBit(Bitmap& bitmap, Bitmap mask) {  // 清理bit
     bitmap &= ~mask;
 }
-inline void movBit(Bitmap& bitmap, Bitmap from, Bitmap to) {  // 移动bit，注意，只能移动值为 1 的bit
+inline void movBit(Bitmap& bitmap, Bitmap from,
+                   Bitmap to) {  // 移动bit，注意，只能移动值为 1 的bit
     bitmap ^= (from | to);
 }
 inline bool chkBit(Bitmap& bitmap, Bitmap mask) {  // 检测bit
@@ -171,7 +177,7 @@ inline Bitmap makeMask(Index index) {
     return 1ULL << index;
 }
 
-// 以int信息生成Move
+// 以int信息生成Move，有一点冗余空位，待开发
 inline Move makeMove(Index from, Index to, Index arrow) {
     return ((Move)from) | ((Move)to << 7) | ((Move)arrow << 14);
 }
@@ -184,6 +190,12 @@ inline Index getTo(Move m) {
 }
 inline Index getArrow(Move m) {
     return (m >> 14) & 0x7F;
+}
+
+// 生成国王八步标记
+inline Bitmap getKingMoves(Bitmap region) {
+    return MOVE_TO_E(region) | MOVE_TO_W(region) | MOVE_TO_S(region) | MOVE_TO_N(region)
+           | MOVE_TO_SE(region) | MOVE_TO_NE(region) | MOVE_TO_NW(region) | MOVE_TO_SW(region);
 }
 
 // 生成皇后八向标记
@@ -217,7 +229,8 @@ inline void delArrow(BitBoard& board, Bitmap arrow) {
 // 从串行O(n)变并行O(logn)
 // 注释解释以向东E为例子
 inline Bitmap koggeStone_S(Bitmap gen, Bitmap pro) {
-    gen |= pro & (gen << 8);  // 传递步长依此为 1*8 2*8 4*8，竖向导致系数为 8，即棋盘长度
+    gen |= pro & (gen << 8);  // 传递步长依此为 1*8 2*8 4*8，竖向导致系数为
+                              // 8，即棋盘长度
     pro &= (pro << 8);
     gen |= pro & (gen << 16);
     pro &= (pro << 16);
@@ -236,7 +249,8 @@ inline Bitmap koggeStone_N(Bitmap gen, Bitmap pro) {
 
 inline Bitmap koggeStone_E(Bitmap gen, Bitmap pro) {  // 依此为范本，衍生出其它
     pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);    // 防止传播掩码卷边
-    gen |= pro & (gen << 1);                          // 进位向前传递，传递步长依次为 1 2 4，刚好覆盖最大可能 7 步
+    gen |= pro & (gen << 1);                          // 进位向前传递，传递步长依次为 1 2
+                                                      // 4，刚好覆盖最大可能 7 步
     pro &= (pro << 1);                                // 更新传播信号
     gen |= pro & (gen << 2);
     pro &= (pro << 2);
@@ -256,7 +270,8 @@ inline Bitmap koggeStone_W(Bitmap gen, Bitmap pro) {
 
 inline Bitmap koggeStone_SE(Bitmap gen, Bitmap pro) {
     pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);
-    gen |= pro & (gen << 9);  // 传递步长依此为 1*9 2*9 4*9，对角线导致系数为 9，即 棋盘长度 + 1
+    gen |= pro & (gen << 9);  // 传递步长依此为 1*9 2*9 4*9，对角线导致系数为
+                              // 9，即 棋盘长度 + 1
     pro &= (pro << 9);
     gen |= pro & (gen << 18);
     pro &= (pro << 18);
@@ -266,7 +281,8 @@ inline Bitmap koggeStone_SE(Bitmap gen, Bitmap pro) {
 
 inline Bitmap koggeStone_SW(Bitmap gen, Bitmap pro) {
     pro &= static_cast<Bitmap>(MapMask::NO_LEFT);
-    gen |= pro & (gen << 7);  // 传递步长依此为 1*7 2*7 4*7，反对角线导致系数为 7，即 棋盘长度 - 1
+    gen |= pro & (gen << 7);  // 传递步长依此为 1*7 2*7 4*7，反对角线导致系数为
+                              // 7，即 棋盘长度 - 1
     pro &= (pro << 7);
     gen |= pro & (gen << 14);
     pro &= (pro << 14);

@@ -32,7 +32,8 @@ constexpr Element ALL_ELEMENTS[] = {
 
 // 对外暴漏的密码本
 constexpr int AMAZON_BOARD_SQUARE = 64;  //  没法使用BitEngine里的常量，这里手动定义
-extern Key elementHash[static_cast<int>(Element::ELEMENT_COUNT)][static_cast<int>(AMAZON_BOARD_SQUARE)];
+extern Key elementHash[static_cast<int>(Element::ELEMENT_COUNT)]
+                      [static_cast<int>(AMAZON_BOARD_SQUARE)];
 // 黑方回合需要额外异或的密匙
 extern Key playerBlackKey;
 
@@ -45,7 +46,11 @@ Key generateHash(const BitEngine::BitBoard& board);
 // 增量计算：针对一次Move更新Hash值
 // 调用时机——先updataHash，再applyMove！！！
 // 因为applyMove中会SwitchPlayer，updataHash的player参数会直接拿board里的参数强转
-inline Key updataHash(Key ori_key, Element player, BitEngine::Index from, BitEngine::Index to, BitEngine::Index arrow) {
+inline Key updataHash(Key ori_key,
+                      Element player,
+                      BitEngine::Index from,
+                      BitEngine::Index to,
+                      BitEngine::Index arrow) {
     // 调试
     assert((player == Element::PLAYER_BLACK) || (player == Element::PLAYER_WHITE));
     // 全部哈希特性都更新一次，次序不限

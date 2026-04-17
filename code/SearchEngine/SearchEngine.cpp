@@ -28,7 +28,10 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     return globalBestMove;
 }
 
-TTable::Score PVS(BitEngine::BitBoard& board, TTable::Depth depth, TTable::Score alpha, TTable::Score beta) {
+TTable::Score PVS(BitEngine::BitBoard& board,
+                  TTable::Depth depth,
+                  TTable::Score alpha,
+                  TTable::Score beta) {
     // 毎若干搜索后检查一次超时
     static int nodesCnt = 0;
     // if (!(++nodesCnt & CHECK_GAP_MASK) && checkTimeout()) return 0;
@@ -85,8 +88,9 @@ TTable::Score PVS(BitEngine::BitBoard& board, TTable::Depth depth, TTable::Score
             // 零窗口搜索
             TTable::Score score;
             score = -PVS(board, depth - 1, -alpha - 1, -alpha);
-            if (alpha < score && score < beta)                  // 可以省一步更新alpha，使用-score
-                score = -PVS(board, depth - 1, -beta, -score);  // 零窗口尝试失败，重新搜索
+            if (alpha < score && score < beta)  // 可以省一步更新alpha，使用-score
+                score = -PVS(board, depth - 1, -beta,
+                             -score);  // 零窗口尝试失败，重新搜索
 
             // 悔棋
             BitEngine::resetMove(board, move);
@@ -118,4 +122,122 @@ TTable::Score PVS(BitEngine::BitBoard& board, TTable::Depth depth, TTable::Score
     // 返回最优解
     return bestScore;
 }
+
+TTable::Score evaluate(const BitEngine::BitBoard& board) {
+    using namespace BitEngine;
+    // 分辨敌我
+    Bitmap myAmazons, opAmazons;
+    if (board.player == Player::BLACK) {
+        myAmazons = board.blacks;
+        opAmazons = board.whites;
+    } else {
+        myAmazons = board.whites;
+        opAmazons = board.blacks;
+    }
+
+    // 障碍与空地缓存
+    Bitmap allBlocked = board.allBlocked();
+    Bitmap empty = ~allBlocked;
+    int emptyCnt = cntBit(empty);
+
+    // 残局特化
+    if (emptyCnt <= ENDGAME_PIECES)
+        return evaluateEndGame(board, empty, myAmazons, opAmazons);
+
+    // 普通局面
+
+    // 机动性评估：
+    // 汇总一步能到达的所有格子
+    Bitmap myReach = 0;
+    Bitmap me = myAmazons;
+    while (me) {
+        Index idx = fnlBit(me);
+        myReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        kicBit(me);
+    }
+    Bitmap opReach = 0;
+    Bitmap op = opAmazons;
+    while (op) {
+        Index idx = fnlBit(op);
+        opReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        kicBit(op);
+    }
+    // 量化
+    int myMobility = cntBit(myReach);
+    int opMobility = cntBit(opReach);
+
+    // 领地评估：
+    // 汇总能领先到达的所有格子
+    int myExclusive = cntBit(myReach & ~opReach);
+    int opExclusive = cntBit(~myReach & opReach);
+
+    // 中局特化
+    // 中心区域加分
+    int myCenter = 0;
+    int opCenter = 0;
+    if (emptyCnt > MIDDLEGAME_PIECES) {
+        myCenter = (cntBit(myReach) & CENTER_MASK);
+        opCenter = (cntBit(opReach) & CENTER_MASK);
+    }
+
+    // 动态权重
+    // 机动性逐渐贬值，领地逐渐升值
+    int w_mob, w_ter;
+    if (emptyCnt > 40) {
+        w_mob = W_MOB_A;
+        w_ter = W_TER_A;
+    } else {
+        w_mob = W_MOB_B;
+        w_ter = W_TER_B;
+    }
+
+    // 计算总分
+    return w_mob * (myMobility - opMobility) + w_ter * (myExclusive - opExclusive)
+           + CENTER_FACTOR * (myCenter - opCenter);
+}
+
+TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
+                              BitEngine::Bitmap empty,
+                              BitEngine::Bitmap myAmazons,
+                              BitEngine::Bitmap opAmazons) {
+    using namespace BitEngine;
+    // 缓存
+    TTable::Score score = 0;
+    Bitmap visited = 0;
+    Bitmap unvisited = empty;
+
+    // 遍历所有空地，寻找独立连通区域
+    while (unvisited) {
+        Bitmap region = makeMask(fnlBit(unvisited));
+
+        // 水漫法
+        Bitmap lastRegion = 0;
+        while (region != lastRegion) {
+            lastRegion = region;
+            region |= (getKingMoves(region) & empty);
+        }
+
+        // 更新访问标志
+        setBit(visited, region);
+        clsBit(unvisited, region);
+
+        // 判定区域归属（边缘是否碰到棋子）
+        Bitmap regionBorder = getKingMoves(region);
+        bool myRegion = (regionBorder & myAmazons);
+        bool opRegion = (regionBorder & opAmazons);
+
+        // 结算
+        int regionSize = cntBit(region);
+        if (myRegion && !opRegion) {  // 我的绝对领域
+            score += ABSOLUTE_DOMAIN_FACTOR * regionSize;
+        } else if (!myRegion && opRegion) {  // 她的绝对领域
+            score -= ABSOLUTE_DOMAIN_FACTOR * regionSize;
+        } else if (myRegion && opRegion) {  // 混战
+            // TODO：没想好怎么设计
+        }
+    }  // end while
+
+    return score;
+}
+
 }  // namespace VanitasBot::SearchEngine
