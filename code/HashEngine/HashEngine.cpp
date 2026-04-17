@@ -12,7 +12,7 @@ Key playerBlackKey;
 
 void init() {
     // 全局随机种子（必须写死，不要使用Time来写，保证哈希稳定）
-    std::mt19937_64 rng(0x192837465A6B7C8DULL);
+    std::mt19937_64 rng(0x192837465A6B7C8DULL);  // 让AI填的数，不知道如何
 
     // 布满随机数
     for (auto ele : ALL_ELEMENTS) {

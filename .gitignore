@@ -119,3 +119,6 @@ test_cases/*.json.tmp
 
 # shell脚本生成产物
 collected_files/
+
+# VSCode插件生成产物
+.VSCodeCounter/

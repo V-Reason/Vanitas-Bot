@@ -43,6 +43,8 @@ void init();
 Key generateHash(const BitEngine::BitBoard& board);
 
 // 增量计算：针对一次Move更新Hash值
+// 调用时机——先updataHash，再applyMove！！！
+// 因为applyMove中会SwitchPlayer，updataHash的player参数会直接拿board里的参数强转
 inline Key updataHash(Key ori_key, Element player, BitEngine::Index from, BitEngine::Index to, BitEngine::Index arrow) {
     // 调试
     assert((player == Element::PLAYER_BLACK) || (player == Element::PLAYER_WHITE));
