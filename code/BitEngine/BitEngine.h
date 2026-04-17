@@ -5,6 +5,8 @@
 // 弃用<bit>，Botzone环境最高C++17，无法使用
 // #include <bit>
 
+#include "HashEngine/HashEngine.h"
+
 #include <cstdint>
 
 // 兼容MSVC和GCC
@@ -20,8 +22,9 @@ using Move = uint32_t;
 using Bitmap = uint64_t;
 
 // 已知信息
-constexpr int AMAZON_BOARD_LENGTH = 8;            // 棋盘长度
-constexpr int MAX_AMAZON_MOVE_TYPE = 5112 + 388;  // 5112为理论极限值，388为设计冗余量
+constexpr int AMAZON_BOARD_LENGTH = 8;                                      // 棋盘长度
+const int AMAZON_BOARD_SQUARE = AMAZON_BOARD_LENGTH * AMAZON_BOARD_LENGTH;  // 棋盘格子数
+constexpr int MAX_AMAZON_MOVE_TYPE = 5112 + 388;                            // 5112为理论极限值，388为设计冗余量
 // constexpr Bitmap BEGIN_BLACKS_POSITION =
 //     makeMask(XYToBit(2,0))
 //     | makeMask(XYToBit(5,0))
@@ -87,6 +90,9 @@ inline void setBit(Bitmap& bitmap, Bitmap mask) {  // 设置bit
 inline void clsBit(Bitmap& bitmap, Bitmap mask) {  // 清理bit
     bitmap &= ~mask;
 }
+inline void movBit(Bitmap& bitmap, Bitmap from, Bitmap to) {
+    bitmap ^= (from | to);
+}
 inline bool chkBit(Bitmap& bitmap, Bitmap mask) {  // 检测bit
     return bitmap & mask;
 }
@@ -115,8 +121,8 @@ inline int cntBit(Bitmap mask) {  // 计算1的个数
 }
 
 // 玩家枚举
-enum class Player {
-    BLACK = -1,
+enum class Player : int {
+    BLACK = 0,
     WHITE = 1,
 };
 
@@ -126,6 +132,8 @@ struct BitBoard {
     Bitmap whites;  // 白方棋子
     Bitmap arrows;  // 箭矢
     Player player;  // 玩家颜色
+
+    HashEngine::Key hash;  // 局面hash值
 
     inline Bitmap allPieces() const {
         return whites | blacks;
@@ -137,7 +145,7 @@ struct BitBoard {
 
 // 产出信息
 struct MoveList {
-    Move moves[MAX_AMAZON_MOVE_TYPE];  // 静态内存放Move，放在栈上，比vector快
+    Move moves[MAX_AMAZON_MOVE_TYPE];  // 约21.5KB，静态内存，放在栈上，比vector快
     int count = 0;                     // 控制已用内存的指针
 
     inline void push(Move m) {  // 加入数据
@@ -193,7 +201,8 @@ void resetMove(BitBoard& board, Move move);
 
 // 切换玩家
 inline void SwitchPlayer(BitBoard& board) {
-    board.player = static_cast<Player>(-1 * static_cast<int>(board.player));
+    // board.player = static_cast<Player>(-1 * static_cast<int>(board.player));
+    board.player = static_cast<Player>((1 - static_cast<int>(board.player)));
 }
 // 添加障碍
 inline void addArrow(BitBoard& board, Bitmap arrow) {
