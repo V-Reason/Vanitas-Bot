@@ -7,7 +7,14 @@ BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
 MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
                  [BitEngine::AMAZON_BOARD_SQUARE]{};
 
+// 临时计时器
+auto startTime = std::chrono::steady_clock::now();
+bool isTimeOut = false;
 BitEngine::Move search(BitEngine::BitBoard& board) {
+    // 临时：每次进入主搜时，强行重置一次计时器起点
+    startTime = std::chrono::steady_clock::now();
+    isTimeOut = false;
+
     // TODO: 开局库检查
 
     // 初始化哈希
@@ -122,12 +129,15 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         // 落子（内部自动更新hash）
         BitEngine::applyMove(board, move);
 
-        // 零窗口搜索
+        // 搜索
         TTable::Score score;
-        score = -PVS(board, depth - 1, -alpha - 1, -alpha);
-        if (alpha < score && score < beta)                  // 可以省一步更新alpha，使用-score
-            score = -PVS(board, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
-
+        if (i == 0)  // 首节点全窗口搜索
+            score = -PVS(board, depth - 1, -beta, -alpha);
+        else {  // 零窗口搜索
+            score = -PVS(board, depth - 1, -alpha - 1, -alpha);
+            if (alpha < score && score < beta)                  // 可以省一步更新alpha，使用-score
+                score = -PVS(board, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
+        }
         // 悔棋
         BitEngine::resetMove(board, move);
 

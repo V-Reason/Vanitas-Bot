@@ -8,8 +8,8 @@
 
 #include <chrono>
 // 临时计时器
-auto startTime = std::chrono::steady_clock::now();
-bool isTimeOut = false;
+extern auto startTime = std::chrono::steady_clock::now();
+extern bool isTimeOut = false;
 constexpr int TIME_LIMIT_MS = 900;
 
 inline bool checkTimeout() {
