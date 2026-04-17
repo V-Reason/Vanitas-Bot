@@ -1,12 +1,6 @@
 #include "SearchEngine.h"
 
-#include <algorithm>
-
 namespace VanitasBot::SearchEngine {
-BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
-MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
-                 [BitEngine::AMAZON_BOARD_SQUARE]{};
-
 BitEngine::Move search(BitEngine::BitBoard& board) {
     // TODO: 开局库检查
 
@@ -20,8 +14,6 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
         TTable::Score score = PVS(board, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
 
         // TODO: isTimeOut检测
-        if (isTimeOut)
-            break;
 
         // 读取TTable置换表，更新globalBestMove
         TTable::TTableData ttData;
@@ -42,10 +34,8 @@ TTable::Score PVS(BitEngine::BitBoard& board,
                   TTable::Score beta) {
     // 毎若干搜索后检查一次超时
     static int nodesCnt = 0;
-    if (!(++nodesCnt & CHECK_GAP_MASK) && checkTimeout())
-        return 0;
-    if (isTimeOut)
-        return 0;
+    // if (!(++nodesCnt & CHECK_GAP_MASK) && checkTimeout()) return 0;
+    // if (isTimeOut) return 0;
 
     // TTable置换表剪枝
     TTable::TTableData ttData;
@@ -76,93 +66,56 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     }
 
     // TODO: 走法排序
-    // 权重定义
-    // 1. 置换表
-    // 2. 杀手表
-    // 3. 历史表
-    int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];
-    for (int i = 0; i < moveList.count; ++i) {
-        BitEngine::Move m = moveList.moves[i];
-        if (m == ttMove)
-            moveWeight[i] = TTABLE_WEIGHT;
-        else if (m == KTable[depth][0] || m == KTable[depth][1])
-            moveWeight[i] = KTABLE_WEIGHT;
-        else {
-            using namespace BitEngine;
-            moveWeight[i] = HTable[getFrom(m)][getTo(m)][getArrow(m)];
-        }
-    }
-
-    // [ 已弃用 ]
-    // // 首节点，全窗口搜索
-    // BitEngine::applyMove(board, bestMove);  // 借用bestMove代表moveList.moves[0]
-    // bestScore = -PVS(board, depth - 1, -beta, -alpha);
-    // BitEngine::resetMove(board, bestMove);
-    // if (bestScore > alpha)
-    //     alpha = bestScore;
-    // if (!(alpha >= beta))  // beta剪枝失败，进入循环，从 i=1 开始
 
     // 搜索
     TTable::Score bestScore = -TTable::SCORE_INFINITY;
     BitEngine::Move bestMove = moveList.moves[0];
     TTable::Score ori_Alpha = alpha;
 
-    for (int i = 0; i < moveList.count; ++i) {
-        // 实时选择排序 -> 性质好，不需要全排一遍
-        int maxInx = i;
-        for (int j = i + 1; j < moveList.count; ++j) {
-            if (moveWeight[j] > moveWeight[maxInx])
-                maxInx = j;
-        }
-        std::swap(moveList.moves[maxInx], moveList.moves[i]);
-        std::swap(moveWeight[maxInx], moveWeight[i]);
+    // 首节点，全窗口搜索
+    BitEngine::applyMove(board, bestMove);  // 借用bestMove代表moveList.moves[0]
+    bestScore = -PVS(board, depth - 1, -beta, -alpha);
+    BitEngine::resetMove(board, bestMove);
+    if (bestScore > alpha)
+        alpha = bestScore;
+    if (!(alpha >= beta))  // beta剪枝失败，进入循环，从 i=1 开始
+        for (int i = 1; i < moveList.count; ++i) {
+            // 取Move
+            BitEngine::Move move = moveList.moves[i];
+            // 落子（内部自动更新hash）
+            BitEngine::applyMove(board, move);
 
-        // 取Move，即为权重最高的
-        BitEngine::Move move = moveList.moves[i];
-        // 落子（内部自动更新hash）
-        BitEngine::applyMove(board, move);
+            // 零窗口搜索
+            TTable::Score score;
+            score = -PVS(board, depth - 1, -alpha - 1, -alpha);
+            if (alpha < score && score < beta)  // 可以省一步更新alpha，使用-score
+                score = -PVS(board, depth - 1, -beta,
+                             -score);  // 零窗口尝试失败，重新搜索
 
-        // 零窗口搜索
-        TTable::Score score;
-        score = -PVS(board, depth - 1, -alpha - 1, -alpha);
-        if (alpha < score && score < beta)                  // 可以省一步更新alpha，使用-score
-            score = -PVS(board, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
+            // 悔棋
+            BitEngine::resetMove(board, move);
 
-        // 悔棋
-        BitEngine::resetMove(board, move);
+            // TODO:超时处理
+            // if(isTimeOut) return 0;
 
-        // TODO:超时处理
-        if (isTimeOut)
-            return 0;
-
-        // 更新结果
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = move;
-        }
-        // 收缩窗口
-        if (score > alpha)
-            alpha = score;
-        // beta剪枝
-        if (alpha >= beta) {
-            // 更新杀手
-            if (move != KTable[depth][0]) {  // 简易循环数组
-                KTable[depth][1] = KTable[depth][0];
-                KTable[depth][0] = move;
+            // 更新结果
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
             }
-            // 更新历史
-            using namespace BitEngine;
-            HTable[getFrom(move)][getTo(move)][getArrow(move)] += depth * depth;
-            // 剪枝
-            break;
+            // 收缩窗口
+            if (score > alpha)
+                alpha = score;
+            // beta剪枝
+            if (alpha >= beta)
+                break;
         }
-    }
 
     // 写入TTable置换表
     TTable::NodeFlag flag = TTable::NodeFlag::EXACT;
     if (bestScore <= ori_Alpha)
         flag = TTable::NodeFlag::UPPER_BOUND;  // Fail-Low
-    else if (bestScore >= beta)
+    else if (bestScore > beta)
         flag = TTable::NodeFlag::LOWER_BOUND;
     TTable::write({board.hash, bestMove, bestScore, depth, flag});  // Fail-High
 
@@ -223,8 +176,8 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     int myCenter = 0;
     int opCenter = 0;
     if (emptyCnt > MIDDLEGAME_PIECES) {
-        myCenter = cntBit(myReach & CENTER_MASK);
-        opCenter = cntBit(opReach & CENTER_MASK);
+        myCenter = (cntBit(myReach) & CENTER_MASK);
+        opCenter = (cntBit(opReach) & CENTER_MASK);
     }
 
     // 动态权重
@@ -281,10 +234,6 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
             score -= ABSOLUTE_DOMAIN_FACTOR * regionSize;
         } else if (myRegion && opRegion) {  // 混战
             // TODO：没想好怎么设计
-            // 机动性给简单的分
-            int myMob = cntBit(getKingMoves(myAmazons) & region);
-            int opMob = cntBit(getKingMoves(opAmazons) & region);
-            score += MELEE_FACTOR * (myMob - opMob);
         }
     }  // end while
 

@@ -6,10 +6,26 @@
 #include "HashEngine/HashEngine.h"
 #include "TTable/TTable.h"
 
+#include <chrono>
+// 临时计时器
+auto startTime = std::chrono::steady_clock::now();
+bool isTimeOut = false;
+constexpr int TIME_LIMIT_MS = 900;
+
+inline bool checkTimeout() {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+    if (elapsed > TIME_LIMIT_MS) {
+        isTimeOut = true;
+        return true;
+    }
+    return false;
+}
+
 namespace VanitasBot::SearchEngine {
 // 配置数据
-constexpr int MAX_DEPTH = 20;                // 最大搜索深度
-constexpr int CHECK_GAP_MASK = 1 << 10 - 1;  // 取模掩码，毎1024回合检查一次超时
+constexpr int MAX_DEPTH = 20;                  // 最大搜索深度
+constexpr int CHECK_GAP_MASK = (1 << 10) - 1;  // 取模掩码，毎1024回合检查一次超时
 // 局面情况分类
 constexpr int MIDDLEGAME_PIECES = 44;
 constexpr int ENDGAME_PIECES = 16;
@@ -20,11 +36,23 @@ constexpr BitEngine::Bitmap CENTER_MASK
 // 加分系数
 constexpr int CENTER_FACTOR = 20;             // 中心点
 constexpr int ABSOLUTE_DOMAIN_FACTOR = 1000;  // 绝对领域
+constexpr int MELEE_FACTOR = 10;              // 混战
 
 constexpr int W_MOB_A = 6;  // 机动性
 constexpr int W_MOB_B = 2;
 constexpr int W_TER_A = 4;  // 领地
 constexpr int W_TER_B = 8;
+
+// 启发数据
+using MoveWeight = int;                 // 走法权重
+constexpr int KILLER_NUM = 2;           // 杀手数量
+constexpr int TTABLE_WEIGHT = 1 << 30;  // 置换表权重
+constexpr int KTABLE_WEIGHT = 1 << 29;  // 杀手权重
+constexpr int HTABLE_WEIGHT = 1 << 28;  // 历史表权重
+
+extern BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM];  // 杀手表
+extern MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
+                        [BitEngine::AMAZON_BOARD_SQUARE];  // 历史表
 
 // 搜索入口
 BitEngine::Move search(BitEngine::BitBoard& board);
