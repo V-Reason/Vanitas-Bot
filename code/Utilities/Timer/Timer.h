@@ -6,57 +6,44 @@
 
 namespace VanitasBot::Utilities {
 // 规范信息类型
-using Clock = std::chrono::system_clock;
+using Clock = std::chrono::steady_clock;
 using TimePoint = Clock::time_point;
 using Time_ms = std::chrono::milliseconds;
 
-// 静态类Timer
+// 超时配置结构
+struct TimeoutConfig {
+    int timeoutMs;
+    bool* isTimeOut;
+};
+
 class Timer {
    private:
-    // Timer全局单例模式
-    Timer(): startTime(Clock::now()), timeout(Time_ms(1000)) {}
-    ~Timer() = default;
-    // 记录初始化时间
-    TimePoint startTime;
-    // 超时时间（初始为一秒）
-    Time_ms timeout;
+    // 全局开始时间点（程序启动时初始化）
+    static inline TimePoint startTimePoint = Clock::now();
 
    public:
-    // Timer全局单例模式
-    Timer(const Timer&) = delete;
-    Timer& operator=(const Timer&) = delete;
-
-    // 实现定时器的单例模式
-    static Timer& instance() {
-        static Timer timer;
-        return timer;
+    // 获取已过去的时间（毫秒）
+    static inline int getPassedTime() {
+        return std::chrono::duration_cast<Time_ms>(Clock::now() - startTimePoint).count();
     }
 
-    // 记录程序开始时间戳
-    inline void startTimer() {
-        startTime = Clock::now();
+    // 重置开始时间点
+    static inline void resetStartTime() {
+        startTimePoint = Clock::now();
     }
 
-    // 获得现在时间戳
-    inline TimePoint getNowTimePoint() {
-        return Clock::now();
-    }
+    // 编译期不定长数组配置示例
+    static constexpr TimeoutConfig timeoutConfigs[] = {{100, nullptr}, {500, nullptr}, {900, nullptr}};
 
-    // 获得过去的时间(ms)
-    inline int getPassedTime() {
-        auto now = Clock::now();
-        return std::chrono::duration_cast<Time_ms>(now - startTime).count();
-    }
-
-    // 设置超时时间
-    inline void setTimeout(Time_ms timeout) {
-        this->timeout = timeout;
-    }
-
-    // 检查是否超时
-    inline bool isTimeout() {
-        return getPassedTime() >= timeout.count();
+    // 检查并更新超时状态（O(1)时间复杂度，无if判断）
+    static inline void checkTimeouts() {
+        int passed = getPassedTime();
+        for (int i = 0; i < 3; ++i) {
+            const auto& config = timeoutConfigs[i];
+            config.isTimeOut && (*config.isTimeOut = passed >= config.timeoutMs);
+        }
     }
 };
+
 }  // namespace VanitasBot::Utilities
 #endif
