@@ -23,7 +23,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     Utilities::Timer::timeoutConfigs[0].isTimeOut = &isTimeout_final;
 
     // 重置计时器
-    // Utilities::Timer::resetStartTime();
+    Utilities::Timer::resetStartTime();
 
     // TODO: 开局库检查
 
@@ -38,6 +38,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 
 #ifdef DEBUG
         printf("depth: %d\n", depth);
+        printf("PassedTime: %d\n", Utilities::Timer::getPassedTime());
 #endif
 
         // TODO: isTimeout_final检测

@@ -15,25 +15,30 @@ int main() {
 #endif
     using namespace VanitasBot;
 
+    Utilities::Timer::resetStartTime();
+
     BitEngine::BitBoard board;
-    IOEngine::IOEngine io;
 
-    io.initBoard(board);
+    IOEngine::initIOEngine();
+    IOEngine::initBoard(board);
     Utilities::Logger::showBitboard(board);
-    io.readInputAndRecover(board);
+    IOEngine::readInputAndRecover(board);
     Utilities::Logger::showBitboard(board);
 
-    BitEngine::Move chosenMove;
-    chosenMove = SearchEngine::search(board);
+    printf("PassedTimeBefore: %d\n", Utilities::Timer::getPassedTime());
 
-    printf("ScoreBefore: %d\n", SearchEngine::evaluate(board));
-    BitEngine::applyMove(board, chosenMove);
-    Utilities::Logger::showBitboard(board);
-    printf("PassedTime: %d\n", Utilities::Timer::getPassedTime());
-    BitEngine::SwitchPlayer(board);
-    printf("ScoreAfter: %d\n", SearchEngine::evaluate(board));
+    // BitEngine::Move chosenMove;
+    // chosenMove = SearchEngine::search(board);
 
-    io.outputAnswer(chosenMove);
+    // printf("PassedTimeAfter: %d\n", Utilities::Timer::getPassedTime());
+
+    // printf("ScoreBefore: %d\n", SearchEngine::evaluate(board));
+    // BitEngine::applyMove(board, chosenMove);
+    // Utilities::Logger::showBitboard(board);
+    // BitEngine::SwitchPlayer(board);
+    // printf("ScoreAfter: %d\n", SearchEngine::evaluate(board));
+
+    // io.outputAnswer(chosenMove);
 
     return 0;
 }
