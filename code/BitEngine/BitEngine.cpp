@@ -62,24 +62,6 @@ namespace VanitasBot::BitEngine {
 Bitmap generateQueenMoves(Bitmap from, Bitmap blocked) {
     Bitmap empty = ~blocked;  // 可通行的空地
 
-    // using namespace Utilities;
-    // printf("N:");
-    // Logger::showBitmap(koggeStone_N(from, empty));
-    // printf("S:");
-    // Logger::showBitmap(koggeStone_S(from, empty));
-    // printf("E:");
-    // Logger::showBitmap(koggeStone_E(from, empty));
-    // printf("W:");
-    // Logger::showBitmap(koggeStone_W(from, empty));
-    // printf("NE:");
-    // Logger::showBitmap(koggeStone_NE(from, empty));
-    // printf("NW:");
-    // Logger::showBitmap(koggeStone_NW(from, empty));
-    // printf("SE:");
-    // Logger::showBitmap(koggeStone_SE(from, empty));
-    // printf("SW:");
-    // Logger::showBitmap(koggeStone_SW(from, empty));
-
     // 八个方向并行计算
     Bitmap moves = koggeStone_N(from, empty) | koggeStone_S(from, empty) | koggeStone_E(from, empty)
                    | koggeStone_W(from, empty) | koggeStone_NE(from, empty)

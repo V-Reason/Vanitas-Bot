@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <cstdio>
 
+// 临时测试探针
+uint64_t stat_nodes_evaluated = 0;
+uint64_t stat_tt_hits = 0;
+
 namespace VanitasBot::SearchEngine {
 BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
 MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
@@ -33,7 +37,8 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 
     // IDS迭代加深搜索
     BitEngine::Move globalBestMove = 0;
-    for (int depth = 1; depth <= MAX_DEPTH; ++depth) {
+    int depth = 1;
+    for (/*int depth = 1*/; depth <= MAX_DEPTH; ++depth) {
         TTable::Score score = PVS(board, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
 
         // TODO: isTimeout_final检测
@@ -53,6 +58,12 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
             break;
     }
 
+    // 调试
+    printf("搜索报告：\n");
+    printf("最大深度: %d\n", depth);
+    printf("评估节点: %llu\n", stat_nodes_evaluated);
+    printf("TT命中: %llu\n", stat_tt_hits);
+
     return globalBestMove;
 }
 
@@ -71,6 +82,8 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     TTable::TTableData ttData;
     BitEngine::Move ttMove = 0;  // 用于记录tt中的最优解，用于排序
     if (TTable::read(board.hash, ttData) && ttData.depth >= depth) {
+        // 调试
+        stat_tt_hits++;
         // 尝试剪枝
         if (ttData.flag == TTable::NodeFlag::EXACT)
             return ttData.score;
@@ -78,6 +91,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             return beta;
         if (ttData.flag == TTable::NodeFlag::UPPER_BOUND && ttData.score <= alpha)
             return alpha;
+        stat_tt_hits--;
         // 剪枝失败，记录bestMove
         ttMove = ttData.bestMove;
     }
@@ -196,6 +210,9 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 }
 
 TTable::Score evaluate(const BitEngine::BitBoard& board) {
+    // 调试
+    stat_nodes_evaluated++;
+
     using namespace BitEngine;
     // 分辨敌我
     Bitmap myAmazons, opAmazons;
