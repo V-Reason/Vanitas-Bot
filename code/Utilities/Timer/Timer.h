@@ -10,73 +10,40 @@ using Clock = std::chrono::steady_clock;
 using TimePoint = Clock::time_point;
 using Time_ms = std::chrono::milliseconds;
 
-// 默认超时时间配置（1秒）
-constexpr Time_ms DEFAULT_TIMEOUT = Time_ms(1000);
+// 超时配置结构
+struct TimeoutConfig {
+    int timeoutMs;
+    bool* isTimeOut;
+};
 
-// 静态类Timer
 class Timer {
    private:
-    // Timer全局单例模式
-    Timer() = default;
-    ~Timer() = default;
-    // 记录初始化时间（程序启动时初始化）
-    static inline TimePoint startTime = Clock::now();
-    // 超时时间（初始为一秒）
-    static inline Time_ms timeout = DEFAULT_TIMEOUT;
-    // 超时标志指针
-    bool* isTimeOut = nullptr;
+    // 全局开始时间点（程序启动时初始化）
+    static inline TimePoint startTimePoint = Clock::now();
 
    public:
-    // Timer全局单例模式
-    Timer(const Timer&) = delete;
-    Timer& operator=(const Timer&) = delete;
-
-    // 实现定时器的单例模式
-    static Timer& instance() {
-        static Timer timer;
-        return timer;
+    // 获取已过去的时间（毫秒）
+    static inline int getPassedTime() {
+        return std::chrono::duration_cast<Time_ms>(Clock::now() - startTimePoint).count();
     }
 
-    // 记录程序开始时间戳
-    inline void startTimer() {
-        startTime = Clock::now();
+    // 重置开始时间点
+    static inline void resetStartTime() {
+        startTimePoint = Clock::now();
     }
 
-    // 获取全局开始时间
-    inline static TimePoint getStartTime() {
-        return startTime;
-    }
+    // 编译期不定长数组配置示例
+    static constexpr TimeoutConfig timeoutConfigs[] = {{100, nullptr}, {500, nullptr}, {900, nullptr}};
 
-    // 获得现在时间戳
-    inline TimePoint getNowTimePoint() {
-        return Clock::now();
-    }
-
-    // 获得过去的时间(ms)
-    inline int getPassedTime() {
-        auto now = Clock::now();
-        return std::chrono::duration_cast<Time_ms>(now - startTime).count();
-    }
-
-    // 设置超时时间
-    inline void setTimeout(Time_ms timeout) {
-        this->timeout = timeout;
-    }
-
-    // 注册超时标志指针
-    inline void registerTimeout(bool* isTimeOut) {
-        this->isTimeOut = isTimeOut;
-        if (isTimeOut) {
-            *isTimeOut = false;
-        }
-    }
-
-    // 检查超时并更新标志
-    inline void checkTimeOut() {
-        if (isTimeOut) {
-            *isTimeOut = getPassedTime() >= timeout.count();
+    // 检查并更新超时状态（O(1)时间复杂度，无if判断）
+    static inline void checkTimeouts() {
+        int passed = getPassedTime();
+        for (int i = 0; i < 3; ++i) {
+            const auto& config = timeoutConfigs[i];
+            config.isTimeOut && (*config.isTimeOut = passed >= config.timeoutMs);
         }
     }
 };
+
 }  // namespace VanitasBot::Utilities
 #endif
