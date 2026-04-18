@@ -11,7 +11,7 @@
 
 int main() {
 #ifdef DEBUG
-    freopen("test_cases/test_1.txt", "r", stdin);
+    freopen("test_cases/test_ori.txt", "r", stdin);
 #endif
     using namespace VanitasBot;
 
@@ -26,9 +26,12 @@ int main() {
     BitEngine::Move chosenMove;
     chosenMove = SearchEngine::search(board);
 
-    printf("%d", Utilities::Timer::getPassedTime());
+    printf("ScoreBefore: %d\n", SearchEngine::evaluate(board));
     BitEngine::applyMove(board, chosenMove);
     Utilities::Logger::showBitboard(board);
+    printf("PassedTime: %d\n", Utilities::Timer::getPassedTime());
+    BitEngine::SwitchPlayer(board);
+    printf("ScoreAfter: %d\n", SearchEngine::evaluate(board));
 
     io.outputAnswer(chosenMove);
 

@@ -1,6 +1,9 @@
+#define DEBUG
+
 #include "SearchEngine.h"
 
 #include <algorithm>
+#include <cstdio>
 
 namespace VanitasBot::SearchEngine {
 BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
@@ -19,6 +22,9 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     // 配置计时器
     Utilities::Timer::timeoutConfigs[0].isTimeOut = &isTimeout_final;
 
+    // 重置计时器
+    // Utilities::Timer::resetStartTime();
+
     // TODO: 开局库检查
 
     // 初始化哈希
@@ -29,6 +35,10 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     BitEngine::Move globalBestMove = 0;
     for (int depth = 1; depth <= MAX_DEPTH; ++depth) {
         TTable::Score score = PVS(board, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
+
+#ifdef DEBUG
+        printf("depth: %d\n", depth);
+#endif
 
         // TODO: isTimeout_final检测
         if (isTimeout_final)

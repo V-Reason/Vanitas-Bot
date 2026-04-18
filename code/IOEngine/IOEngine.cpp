@@ -13,7 +13,7 @@ void IOEngine::initBoard(BitEngine::BitBoard& board) {
     board.blacks = 0;
     board.whites = 0;
     board.arrows = 0;
-    board.player = BitEngine::Player::WHITE;
+    board.player = BitEngine::Player::BLACK;
 
     BitEngine::setBit(board.blacks, BitEngine::makeMask(BitEngine::XYToIndex(2, 0)));
     BitEngine::setBit(board.blacks, BitEngine::makeMask(BitEngine::XYToIndex(5, 0)));
@@ -33,10 +33,10 @@ void IOEngine::readInputAndRecover(BitEngine::BitBoard& board) {
     int x0, y0, x1, y1, x2, y2;
     int loopCnt = 2 * turnID - 1;
 
-    for (int i = 0; i < loopCnt; i++) {
+    for (int i = 0; i < loopCnt; ++i) {
         scanf("%d %d %d %d %d %d", &x0, &y0, &x1, &y1, &x2, &y2);
         if (x0 == -1) {
-            board.player = BitEngine::Player::BLACK;
+            continue;
         } else {
             BitEngine::Move move = BitEngine::makeMove(BitEngine::XYToIndex(x0, y0),
                                                        BitEngine::XYToIndex(x1, y1),
@@ -45,6 +45,19 @@ void IOEngine::readInputAndRecover(BitEngine::BitBoard& board) {
             BitEngine::applyMove(board, move);
         }
     }
+
+    // for (int i = 0; i < loopCnt; i++) {
+    //     scanf("%d %d %d %d %d %d", &x0, &y0, &x1, &y1, &x2, &y2);
+    //     if (x0 == -1) {
+    //         board.player = BitEngine::Player::BLACK;
+    //     } else {
+    //         BitEngine::Move move = BitEngine::makeMove(BitEngine::XYToIndex(x0, y0),
+    //                                                    BitEngine::XYToIndex(x1, y1),
+    //                                                    BitEngine::XYToIndex(x2, y2));
+    //         pushHistory(board, move);
+    //         BitEngine::applyMove(board, move);
+    //     }
+    // }
 }
 
 void IOEngine::outputAnswer(BitEngine::Move chosenMove) {
