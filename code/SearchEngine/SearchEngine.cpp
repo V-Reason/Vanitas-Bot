@@ -23,7 +23,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     Utilities::Timer::timeoutConfigs[0].isTimeOut = &isTimeout_final;
 
     // 重置计时器
-    Utilities::Timer::resetStartTime();
+    // Utilities::Timer::resetStartTime();
 
     // TODO: 开局库检查
 
@@ -35,11 +35,6 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     BitEngine::Move globalBestMove = 0;
     for (int depth = 1; depth <= MAX_DEPTH; ++depth) {
         TTable::Score score = PVS(board, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
-
-#ifdef DEBUG
-        printf("depth: %d\n", depth);
-        printf("PassedTime: %d\n", Utilities::Timer::getPassedTime());
-#endif
 
         // TODO: isTimeout_final检测
         if (isTimeout_final)

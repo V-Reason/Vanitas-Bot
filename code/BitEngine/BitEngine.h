@@ -230,86 +230,107 @@ inline void delArrow(BitBoard& board, Bitmap arrow) {
 // Kogge-Stone算法
 // 从串行O(n)变并行O(logn)
 // 注释解释以向东E为例子
-inline Bitmap koggeStone_S(Bitmap gen, Bitmap pro) {
-    gen |= pro & (gen << 8);  // 传递步长依此为 1*8 2*8 4*8，竖向导致系数为
-                              // 8，即棋盘长度
-    pro &= (pro << 8);
-    gen |= pro & (gen << 16);
-    pro &= (pro << 16);
-    gen |= pro & (gen << 32);
-    return (gen << 8);
-}
-
 inline Bitmap koggeStone_N(Bitmap gen, Bitmap pro) {
+    gen = (gen >> 8) & pro;
+
     gen |= pro & (gen >> 8);
     pro &= (pro >> 8);
     gen |= pro & (gen >> 16);
     pro &= (pro >> 16);
     gen |= pro & (gen >> 32);
-    return (gen >> 8);
+
+    return gen;
+}
+
+inline Bitmap koggeStone_S(Bitmap gen, Bitmap pro) {
+    gen = (gen << 8) & pro;
+
+    gen |= pro & (gen << 8);
+    pro &= (pro << 8);
+    gen |= pro & (gen << 16);
+    pro &= (pro << 16);
+    gen |= pro & (gen << 32);
+
+    return gen;
 }
 
 inline Bitmap koggeStone_E(Bitmap gen, Bitmap pro) {  // 依此为范本，衍生出其它
-    pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);    // 防止传播掩码卷边
-    gen |= pro & (gen << 1);                          // 进位向前传递，传递步长依次为 1 2
-                                                      // 4，刚好覆盖最大可能 7 步
-    pro &= (pro << 1);                                // 更新传播信号
+    pro &= static_cast<Bitmap>(MapMask::NO_LEFT);     // 切断最左边信号，防止卷绕
+    gen = (gen << 1) & pro;  // 试探走步，撞墙归零，信号源移位后，也能保证返回值没有皇后
+
+    // 延申
+    gen |= pro & (gen << 1);
+    pro &= (pro << 1);
     gen |= pro & (gen << 2);
     pro &= (pro << 2);
     gen |= pro & (gen << 4);
-    return (gen << 1) & static_cast<Bitmap>(MapMask::NO_RIGHT);  // 排除皇后原站位，并且防止溢出
+
+    return gen;
 }
 
 inline Bitmap koggeStone_W(Bitmap gen, Bitmap pro) {
-    pro &= static_cast<Bitmap>(MapMask::NO_LEFT);
+    pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);
+    gen = (gen >> 1) & pro;
+
     gen |= pro & (gen >> 1);
     pro &= (pro >> 1);
     gen |= pro & (gen >> 2);
     pro &= (pro >> 2);
     gen |= pro & (gen >> 4);
-    return (gen >> 1) & static_cast<Bitmap>(MapMask::NO_LEFT);
-}
 
-inline Bitmap koggeStone_SE(Bitmap gen, Bitmap pro) {
-    pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);
-    gen |= pro & (gen << 9);  // 传递步长依此为 1*9 2*9 4*9，对角线导致系数为
-                              // 9，即 棋盘长度 + 1
-    pro &= (pro << 9);
-    gen |= pro & (gen << 18);
-    pro &= (pro << 18);
-    gen |= pro & (gen << 36);
-    return (gen << 9) & static_cast<Bitmap>(MapMask::NO_RIGHT);
-}
-
-inline Bitmap koggeStone_SW(Bitmap gen, Bitmap pro) {
-    pro &= static_cast<Bitmap>(MapMask::NO_LEFT);
-    gen |= pro & (gen << 7);  // 传递步长依此为 1*7 2*7 4*7，反对角线导致系数为
-                              // 7，即 棋盘长度 - 1
-    pro &= (pro << 7);
-    gen |= pro & (gen << 14);
-    pro &= (pro << 14);
-    gen |= pro & (gen << 28);
-    return (gen << 7) & static_cast<Bitmap>(MapMask::NO_LEFT);
+    return gen;
 }
 
 inline Bitmap koggeStone_NE(Bitmap gen, Bitmap pro) {
-    pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);
+    pro &= static_cast<Bitmap>(MapMask::NO_LEFT);
+    gen = (gen >> 7) & pro;
+
     gen |= pro & (gen >> 7);
     pro &= (pro >> 7);
     gen |= pro & (gen >> 14);
     pro &= (pro >> 14);
     gen |= pro & (gen >> 28);
-    return (gen >> 7) & static_cast<Bitmap>(MapMask::NO_RIGHT);
+
+    return gen;
 }
 
 inline Bitmap koggeStone_NW(Bitmap gen, Bitmap pro) {
-    pro &= static_cast<Bitmap>(MapMask::NO_LEFT);
+    pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);
+    gen = (gen >> 9) & pro;
+
     gen |= pro & (gen >> 9);
     pro &= (pro >> 9);
     gen |= pro & (gen >> 18);
     pro &= (pro >> 18);
     gen |= pro & (gen >> 36);
-    return (gen >> 9) & static_cast<Bitmap>(MapMask::NO_LEFT);
+
+    return gen;
+}
+
+inline Bitmap koggeStone_SE(Bitmap gen, Bitmap pro) {
+    pro &= static_cast<Bitmap>(MapMask::NO_LEFT);
+    gen = (gen << 9) & pro;
+
+    gen |= pro & (gen << 9);
+    pro &= (pro << 9);
+    gen |= pro & (gen << 18);
+    pro &= (pro << 18);
+    gen |= pro & (gen << 36);
+
+    return gen;
+}
+
+inline Bitmap koggeStone_SW(Bitmap gen, Bitmap pro) {
+    pro &= static_cast<Bitmap>(MapMask::NO_RIGHT);
+    gen = (gen << 7) & pro;
+
+    gen |= pro & (gen << 7);
+    pro &= (pro << 7);
+    gen |= pro & (gen << 14);
+    pro &= (pro << 14);
+    gen |= pro & (gen << 28);
+
+    return gen;
 }
 
 }  // namespace VanitasBot::BitEngine
