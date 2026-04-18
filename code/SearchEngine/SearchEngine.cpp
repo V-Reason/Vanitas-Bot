@@ -6,14 +6,18 @@ namespace VanitasBot::SearchEngine {
 BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
 MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
                  [BitEngine::AMAZON_BOARD_SQUARE]{};
+bool isTimeout_final = false;
 
 // 临时计时器
-auto startTime = std::chrono::steady_clock::now();
-bool isTimeOut = false;
+// auto startTime = std::chrono::steady_clock::now();
+// bool isTimeout_final = false;
 BitEngine::Move search(BitEngine::BitBoard& board) {
-    // 临时：每次进入主搜时，强行重置一次计时器起点
-    startTime = std::chrono::steady_clock::now();
-    isTimeOut = false;
+    // // 临时：每次进入主搜时，强行重置一次计时器起点
+    // startTime = std::chrono::steady_clock::now();
+    // isTimeout_final = false;
+
+    // 配置计时器
+    Utilities::Timer::timeoutConfigs[0].isTimeOut = &isTimeout_final;
 
     // TODO: 开局库检查
 
@@ -26,9 +30,12 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     for (int depth = 1; depth <= MAX_DEPTH; ++depth) {
         TTable::Score score = PVS(board, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
 
-        // TODO: isTimeOut检测
-        if (isTimeOut)
+        // TODO: isTimeout_final检测
+        if (isTimeout_final)
             break;
+
+        // 衰减HTable
+        decayHTable();
 
         // 读取TTable置换表，更新globalBestMove
         TTable::TTableData ttData;
@@ -49,9 +56,9 @@ TTable::Score PVS(BitEngine::BitBoard& board,
                   TTable::Score beta) {
     // 毎若干搜索后检查一次超时
     static int nodesCnt = 0;
-    if (!(++nodesCnt & CHECK_GAP_MASK) && checkTimeout())
+    if (!(++nodesCnt & CHECK_GAP_MASK) && Utilities::Timer::checkTimeouts())
         return 0;
-    if (isTimeOut)
+    if (isTimeout_final)
         return 0;
 
     // TTable置换表剪枝
@@ -126,6 +133,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
         // 取Move，即为权重最高的
         BitEngine::Move move = moveList.moves[i];
+
         // 落子（内部自动更新hash）
         BitEngine::applyMove(board, move);
 
@@ -138,11 +146,12 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             if (alpha < score && score < beta)                  // 可以省一步更新alpha，使用-score
                 score = -PVS(board, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
         }
+
         // 悔棋
         BitEngine::resetMove(board, move);
 
         // TODO:超时处理
-        if (isTimeOut)
+        if (isTimeout_final)
             return 0;
 
         // 更新结果

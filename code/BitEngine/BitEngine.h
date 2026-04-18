@@ -5,8 +5,6 @@
 // 弃用<bit>，Botzone环境最高C++17，无法使用
 // #include <bit>
 
-#include "HashEngine/HashEngine.h"
-
 #include <cstdint>
 
 // 兼容MSVC和GCC
@@ -15,6 +13,11 @@
 #pragma intrinsic(_BitScanForward64)
 #endif
 
+// 向前声明
+namespace VanitasBot::HashEngine {
+using Key = uint64_t;  // 必须和HashEngine里的保持一致！！！
+}
+
 namespace VanitasBot::BitEngine {
 // 规范信息类型
 using Index = uint32_t;
@@ -22,8 +25,8 @@ using Move = uint32_t;
 using Bitmap = uint64_t;
 
 // 已知信息
-constexpr int AMAZON_BOARD_LENGTH = 8;                                      // 棋盘长度
-const int AMAZON_BOARD_SQUARE = AMAZON_BOARD_LENGTH * AMAZON_BOARD_LENGTH;  // 棋盘格子数
+constexpr int AMAZON_BOARD_LENGTH = 8;                                          // 棋盘长度
+constexpr int AMAZON_BOARD_SQUARE = AMAZON_BOARD_LENGTH * AMAZON_BOARD_LENGTH;  // 棋盘格子数
 constexpr int MAX_AMAZON_MOVE_TYPE = 5112 + 388;  // 5112为理论极限值，388为设计冗余量
 // constexpr Bitmap BEGIN_BLACKS_POSITION =
 //     makeMask(XYToBit(2,0))
@@ -95,9 +98,8 @@ inline void setBit(Bitmap& bitmap, Bitmap mask) {  // 设置bit
 inline void clsBit(Bitmap& bitmap, Bitmap mask) {  // 清理bit
     bitmap &= ~mask;
 }
-inline void movBit(Bitmap& bitmap, Bitmap from,
-                   Bitmap to) {  // 移动bit，注意，只能移动值为 1 的bit
-    bitmap ^= (from | to);
+inline void movBit(Bitmap& bitmap, Bitmap from, Bitmap to) {
+    bitmap ^= (from | to);  // 移动bit，注意，只能移动值为 1 的bit，且to为0，即from和to不能有重叠位
 }
 inline bool chkBit(Bitmap& bitmap, Bitmap mask) {  // 检测bit
     return bitmap & mask;

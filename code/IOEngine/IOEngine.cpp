@@ -38,7 +38,8 @@ void IOEngine::readInputAndRecover(BitEngine::BitBoard& board) {
         if (x0 == -1) {
             board.player = BitEngine::Player::BLACK;
         } else {
-            BitEngine::Move move = BitEngine::makeMove(BitEngine::XYToIndex(x0, y0), BitEngine::XYToIndex(x1, y1),
+            BitEngine::Move move = BitEngine::makeMove(BitEngine::XYToIndex(x0, y0),
+                                                       BitEngine::XYToIndex(x1, y1),
                                                        BitEngine::XYToIndex(x2, y2));
             pushHistory(board, move);
             BitEngine::applyMove(board, move);

@@ -29,6 +29,9 @@ Key generateHash(const BitEngine::BitBoard& board) {
 
     // 空白EMPTY不用管，已经删掉了
 
+    // 缩行写法
+    // for (Index idx = fnlBit(arrows); arrows; kicBit(arrows), idx = fnlBit(arrows));
+
     // 箭矢ARROW
     BitEngine::Bitmap arrows = board.arrows;
     while (arrows) {

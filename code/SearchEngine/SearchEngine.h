@@ -5,24 +5,29 @@
 #include "BitEngine/BitEngine.h"
 #include "HashEngine/HashEngine.h"
 #include "TTable/TTable.h"
+#include "Utilities/Timer/Timer.h"
 
-#include <chrono>
-// 临时计时器
-extern auto startTime = std::chrono::steady_clock::now();
-extern bool isTimeOut = false;
-constexpr int TIME_LIMIT_MS = 900;
+#include <algorithm>
 
-inline bool checkTimeout() {
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
-    if (elapsed > TIME_LIMIT_MS) {
-        isTimeOut = true;
-        return true;
-    }
-    return false;
-}
+// // 临时计时器
+// #include <chrono>
+// extern auto startTime = std::chrono::steady_clock::now();
+// extern bool isTimeOut = false;
+// constexpr int TIME_LIMIT_MS = 900;
+
+// inline bool checkTimeout() {
+//     auto now = std::chrono::steady_clock::now();
+//     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now -
+//     startTime).count(); if (elapsed > TIME_LIMIT_MS) {
+//         isTimeOut = true;
+//         return true;
+//     }
+//     return false;
+// }
 
 namespace VanitasBot::SearchEngine {
+// 超时标志
+extern bool isTimeout_final;
 // 配置数据
 constexpr int MAX_DEPTH = 20;                  // 最大搜索深度
 constexpr int CHECK_GAP_MASK = (1 << 10) - 1;  // 取模掩码，毎1024回合检查一次超时
@@ -69,6 +74,20 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
                               BitEngine::Bitmap empty,
                               BitEngine::Bitmap myAmazons,
                               BitEngine::Bitmap opAmazons);  // 残局特化
+
+// 全量衰减历史权重
+inline void decayHTable() {
+    // 行优先
+    constexpr int sq = BitEngine::AMAZON_BOARD_SQUARE;
+    for (int from = 0; from < sq; ++from) {
+        for (int to = 0; to < sq; ++to) {
+            for (int arrow = 0; arrow < sq; ++arrow) {
+                // 减半
+                HTable[from][to][arrow] = std::max(0, HTable[from][to][arrow] >> 1);  // max防止变负
+            }
+        }
+    }
+}
 
 }  // namespace VanitasBot::SearchEngine
 
