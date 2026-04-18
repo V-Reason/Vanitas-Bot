@@ -67,29 +67,31 @@ enum class MapMask : Bitmap {
 // 斜向枚举
 enum class Offset : int {
     toRANK = 1,           // 用于水平
-    toANTI_DIAGONAL = 7,  // 用于反对角线
+    toDIAGONAL = 7,       // 用于对角线
     toFILE = 8,           // 用于竖直
-    toDIAGONAL = 9        // 用于对角线
+    toANTI_DIAGONAL = 9,  // 用于反对角线
 };
 
 // [ 已弃用 / 备选 ] -> [ 再启动 / 国王用]
 // 射线投射法 Ray-Casting
 // 方向走步_宏函数
-#define MOVE_TO_N(pos) (((pos) << static_cast<int>(Offset::toFILE)))
-#define MOVE_TO_E(pos) \
-    (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
-#define MOVE_TO_NE(pos) \
-    (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
-#define MOVE_TO_NW(pos) \
-    (((pos) << static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+#define MOVE_TO_N(pos) (((pos) >> static_cast<int>(Offset::toFILE)))
+#define MOVE_TO_S(pos) (((pos) << static_cast<int>(Offset::toFILE)))
 
-#define MOVE_TO_S(pos) (((pos) >> static_cast<int>(Offset::toFILE)))
-#define MOVE_TO_W(pos) \
+#define MOVE_TO_E(pos) \
     (((pos) >> static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_LEFT))
-#define MOVE_TO_SW(pos) \
+#define MOVE_TO_W(pos) \
+    (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+
+#define MOVE_TO_NE(pos) \
     (((pos) >> static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
-#define MOVE_TO_SE(pos) \
+#define MOVE_TO_SW(pos) \
+    (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+
+#define MOVE_TO_NW(pos) \
     (((pos) >> static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+#define MOVE_TO_SE(pos) \
+    (((pos) << static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
 
 // bit元操作
 inline void setBit(Bitmap& bitmap, Bitmap mask) {  // 设置bit
@@ -196,8 +198,14 @@ inline Index getArrow(Move m) {
 
 // 生成国王八步标记
 inline Bitmap getKingMoves(Bitmap region) {
-    return MOVE_TO_E(region) | MOVE_TO_W(region) | MOVE_TO_S(region) | MOVE_TO_N(region)
-           | MOVE_TO_SE(region) | MOVE_TO_NE(region) | MOVE_TO_NW(region) | MOVE_TO_SW(region);
+    // return MOVE_TO_E(region) | MOVE_TO_W(region) | MOVE_TO_S(region) | MOVE_TO_N(region)
+    //        | MOVE_TO_SE(region) | MOVE_TO_NE(region) | MOVE_TO_NW(region) | MOVE_TO_SW(region);
+    // 左右画线
+    Bitmap e = MOVE_TO_E(region);
+    Bitmap w = MOVE_TO_W(region);
+    Bitmap line = e | region | w;
+    // 上下移动
+    return (MOVE_TO_N(line) | line | MOVE_TO_S(line)) & ~region;  // 剔除起始位置
 }
 
 // 生成皇后八向标记
