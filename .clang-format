@@ -45,6 +45,8 @@ InsertNewlineAtEOF: true
 # 长表达式/公式/判断条件：在 运算符前 自动换行（&& || + - * / 等）
 BreakBeforeBinaryOperators: All
 
+AlignConsecutiveMacros: Consecutive  # 对齐连续宏定义
+
 # 命名空间缩进：不缩进命名空间里的内容
 NamespaceIndentation: None
 
