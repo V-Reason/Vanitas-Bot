@@ -31,7 +31,7 @@ const string WhiteAmazon = string(BG_BLUE) + string(_WHITE) + "W " + string(RESE
 const string BlackAmazon = string(BG_RED) + string(_BLACK) + "B " + string(RESET);   // 红底黑B
 const string BlockedCell = string(BG_BLACK) + string(_GRAY) + "X " + string(RESET);  // 黑底灰叉
 
-void Logger::showBitmap(BitEngine::Bitmap bitmap, const char* title) {
+void Logger::showBitmap(const BitEngine::Bitmap& bitmap, const char* title) {
     std::cout << "--- " << title << " ---" << std::endl;
     std::cout << "  0 1 2 3 4 5 6 7  (x)" << std::endl;
     for (int y = 0; y < BitEngine::AMAZON_BOARD_LENGTH; ++y) {
@@ -52,8 +52,8 @@ void Logger::showBitmap(BitEngine::Bitmap bitmap, const char* title) {
     std::cout << "------------------" << std::endl;
 }
 
-void Logger::showBitboard(BitEngine::BitBoard board) {
-    std::cout << "=== Current Board ===" << std::endl;
+void Logger::showBitboard(const BitEngine::BitBoard& board, const char* title) {
+    std::cout << "=== title ===" << std::endl;
     std::cout << "  0 1 2 3 4 5 6 7  (x)" << std::endl;
     for (int y = 0; y < BitEngine::AMAZON_BOARD_LENGTH; ++y) {
         std::cout << y << " ";  // 打印行号(y)

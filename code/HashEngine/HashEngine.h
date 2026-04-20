@@ -46,7 +46,7 @@ Key generateHash(const BitEngine::BitBoard& board);
 // 增量计算：针对一次Move更新Hash值
 // 调用时机——先updataHash，再applyMove！！！
 // 因为applyMove中会SwitchPlayer，updataHash的player参数会直接拿board里的参数强转
-inline Key updataHash(Key ori_key,
+inline Key updataHash(Key oriHash,
                       Element player,
                       BitEngine::Index from,
                       BitEngine::Index to,
@@ -54,13 +54,13 @@ inline Key updataHash(Key ori_key,
     // 调试
     assert((player == Element::PLAYER_BLACK) || (player == Element::PLAYER_WHITE));
     // 全部哈希特性都更新一次，次序不限
-    ori_key ^= elementHash[static_cast<int>(player)][from];
-    ori_key ^= elementHash[static_cast<int>(player)][to];
-    // ori_key ^= elementHash[static_cast<int>(Element::EMPTY)][arrow];
-    ori_key ^= elementHash[static_cast<int>(Element::ARROW)][arrow];
-    ori_key ^= playerBlackKey;  // 要切换玩家了，所以也更新
+    oriHash ^= elementHash[static_cast<int>(player)][from];
+    oriHash ^= elementHash[static_cast<int>(player)][to];
+    // oriHash ^= elementHash[static_cast<int>(Element::EMPTY)][arrow];
+    oriHash ^= elementHash[static_cast<int>(Element::ARROW)][arrow];
+    oriHash ^= playerBlackKey;  // 要切换玩家了，所以也更新
 
-    return ori_key;
+    return oriHash;
 }
 
 }  // namespace VanitasBot::HashEngine

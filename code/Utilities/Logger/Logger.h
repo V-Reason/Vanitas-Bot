@@ -13,8 +13,8 @@ namespace VanitasBot::Utilities {
 class Logger {
    public:
     // 打印棋盘信息（控制台可视化）
-    static void showBitmap(BitEngine::Bitmap bitmap, const char* title = "Bitmap");
-    static void showBitboard(BitEngine::BitBoard board);
+    static void showBitmap(const BitEngine::Bitmap& bitmap, const char* title = "Bitmap");
+    static void showBitboard(const BitEngine::BitBoard& board, const char* title = "BitBoard");
 };
 }  // namespace VanitasBot::Utilities
 

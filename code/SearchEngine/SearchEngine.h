@@ -30,7 +30,7 @@ namespace VanitasBot::SearchEngine {
 extern bool isTimeout_final;
 // 配置数据
 constexpr int MAX_DEPTH = 20;                  // 最大搜索深度
-constexpr int CHECK_GAP_MASK = (1 << 10) - 1;  // 取模掩码，毎1024回合检查一次超时
+constexpr int CHECK_GAP_MASK = (1 << 13) - 1;  // 取模掩码，毎8192回合检查一次超时，1024为最稳数据
 // 局面情况分类
 constexpr int MIDDLEGAME_PIECES = 44;
 constexpr int ENDGAME_PIECES = 16;
@@ -64,6 +64,7 @@ BitEngine::Move search(BitEngine::BitBoard& board);
 
 // PVS搜索
 TTable::Score PVS(BitEngine::BitBoard& board,
+                  HashEngine::Key currHash,
                   TTable::Depth depth,
                   TTable::Score alpha,
                   TTable::Score beta);

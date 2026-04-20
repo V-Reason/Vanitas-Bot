@@ -33,24 +33,26 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 
     // 初始化哈希
     HashEngine::init();
-    board.hash = HashEngine::generateHash(board);
+    HashEngine::Key initHash = HashEngine::generateHash(board);
 
     // IDS迭代加深搜索
     BitEngine::Move globalBestMove = 0;
     int depth = 1;
     for (/*int depth = 1*/; depth <= MAX_DEPTH; ++depth) {
-        TTable::Score score = PVS(board, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
+        TTable::Score score
+            = PVS(board, initHash, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
 
         // TODO: isTimeout_final检测
         if (isTimeout_final)
             break;
 
-        // 衰减HTable
-        decayHTable();
+        // [ 或许1s中的搜索可以不用衰减? ]
+        // // 衰减HTable
+        // decayHTable();
 
         // 读取TTable置换表，更新globalBestMove
         TTable::TTableData ttData;
-        if (TTable::read(board.hash, ttData))
+        if (TTable::read(initHash, ttData))
             globalBestMove = ttData.bestMove;
 
         // 搜到了必胜解
@@ -68,6 +70,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 }
 
 TTable::Score PVS(BitEngine::BitBoard& board,
+                  HashEngine::Key currHash,
                   TTable::Depth depth,
                   TTable::Score alpha,
                   TTable::Score beta) {
@@ -81,7 +84,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // TTable置换表剪枝
     TTable::TTableData ttData;
     BitEngine::Move ttMove = 0;  // 用于记录tt中的最优解，用于排序
-    if (TTable::read(board.hash, ttData) && ttData.depth >= depth) {
+    if (TTable::read(currHash, ttData) && ttData.depth >= depth) {
         // 调试
         stat_tt_hits++;
         // 尝试剪枝
@@ -139,7 +142,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // 搜索
     TTable::Score bestScore = -TTable::SCORE_INFINITY;
     BitEngine::Move bestMove = moveList.moves[0];
-    TTable::Score ori_Alpha = alpha;
+    TTable::Score oriAlpha = alpha;
 
     for (int i = 0; i < moveList.count; ++i) {
         // 实时选择排序 -> 性质好，不需要全排一遍
@@ -154,17 +157,27 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         // 取Move，即为权重最高的
         BitEngine::Move move = moveList.moves[i];
 
-        // 落子（内部自动更新hash）
+        // 先计算哈希
+        // board.player在数值上通过约定保证正确
+        HashEngine::Key nexHash
+            = HashEngine::updataHash(currHash,
+                                     static_cast<HashEngine::Element>(board.player),
+                                     BitEngine::getFrom(move),
+                                     BitEngine::getTo(move),
+                                     BitEngine::getArrow(move));
+
+        // 再落子（避免切换玩家干扰hash）
         BitEngine::applyMove(board, move);
 
         // 搜索
         TTable::Score score;
         if (i == 0)  // 首节点全窗口搜索
-            score = -PVS(board, depth - 1, -beta, -alpha);
+            score = -PVS(board, nexHash, depth - 1, -beta, -alpha);
         else {  // 零窗口搜索
-            score = -PVS(board, depth - 1, -alpha - 1, -alpha);
-            if (alpha < score && score < beta)                  // 可以省一步更新alpha，使用-score
-                score = -PVS(board, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
+            score = -PVS(board, nexHash, depth - 1, -alpha - 1, -alpha);
+            if (alpha < score && score < beta)  // 可以省一步更新alpha，使用-score
+                score = -PVS(
+                    board, nexHash, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
         }
 
         // 悔棋
@@ -199,11 +212,11 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
     // 写入TTable置换表
     TTable::NodeFlag flag = TTable::NodeFlag::EXACT;
-    if (bestScore <= ori_Alpha)
+    if (bestScore <= oriAlpha)
         flag = TTable::NodeFlag::UPPER_BOUND;  // Fail-Low
     else if (bestScore >= beta)
         flag = TTable::NodeFlag::LOWER_BOUND;
-    TTable::write({board.hash, bestMove, bestScore, depth, flag});  // Fail-High
+    TTable::write({currHash, bestMove, bestScore, depth, flag});  // Fail-High
 
     // 返回最优解
     return bestScore;

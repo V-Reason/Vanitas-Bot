@@ -13,10 +13,11 @@
 #pragma intrinsic(_BitScanForward64)
 #endif
 
-// 向前声明
-namespace VanitasBot::HashEngine {
-using Key = uint64_t;  // 必须和HashEngine里的保持一致！！！
-}
+// [ 弃用 ]
+// // 向前声明
+// namespace VanitasBot::HashEngine {
+// using Key = uint64_t;  // 必须和HashEngine里的保持一致！！！
+// }
 
 namespace VanitasBot::BitEngine {
 // 规范信息类型
@@ -143,7 +144,7 @@ struct BitBoard {
     Bitmap arrows;  // 箭矢
     Player player;  // 玩家颜色
 
-    HashEngine::Key hash;  // 局面hash值
+    // HashEngine::Key hash;  // 局面hash值, 解耦要求提出去了
 
     inline Bitmap allPieces() const {
         return whites | blacks;
@@ -224,7 +225,8 @@ void resetMove(BitBoard& board, Move move);
 // 切换玩家
 inline void SwitchPlayer(BitBoard& board) {
     // board.player = static_cast<Player>(-1 * static_cast<int>(board.player));
-    board.player = static_cast<Player>((1 - static_cast<int>(board.player)));
+    // board.player = static_cast<Player>((1 - static_cast<int>(board.player)));
+    board.player = static_cast<Player>(static_cast<int>(board.player) ^ 1);
 }
 // 添加障碍
 inline void addArrow(BitBoard& board, Bitmap arrow) {

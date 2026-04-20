@@ -1,6 +1,5 @@
 #include "BitEngine.h"
 
-#include "HashEngine/HashEngine.h"
 #include "Utilities/Logger/Logger.h"
 
 namespace VanitasBot::BitEngine {
@@ -128,23 +127,29 @@ void generateAllMoves(const BitBoard& board, MoveList& out_list) {
 }
 
 void applyMove(BitBoard& board, Move move) {
-    // 取出数据
-    Index from_inx = getFrom(move);
-    Index to_inx = getTo(move);
-    Index arrow_inx = getArrow(move);
+    // // 取出数据
+    // Index from_inx = getFrom(move);
+    // Index to_inx = getTo(move);
+    // Index arrow_inx = getArrow(move);
 
-    // 更新局面hash值
-    // HashEngine::Element player =
-    //     (board.player == Player::BLACK) ? HashEngine::Element::PLAYER_BLACK :
-    //     HashEngine::Element::PLAYER_WHITE;
-    board.hash = HashEngine::updataHash(
-        board.hash, static_cast<HashEngine::Element>(board.player), from_inx, to_inx, arrow_inx);
-    // player在数值上通过约定保证正确
+    // [ 弃用 ] [为了解耦，把hash更新提出去了]
+    // // 更新局面hash值
+    // // HashEngine::Element player =
+    // //     (board.player == Player::BLACK) ? HashEngine::Element::PLAYER_BLACK :
+    // //     HashEngine::Element::PLAYER_WHITE;
+    // board.hash = HashEngine::updataHash(
+    //     board.hash, static_cast<HashEngine::Element>(board.player), from_inx, to_inx, arrow_inx);
+    // // player在数值上通过约定保证正确
 
-    // 数据bit化
-    Bitmap from = makeMask(from_inx);
-    Bitmap to = makeMask(to_inx);
-    Bitmap arrow = makeMask(arrow_inx);
+    // // 数据bit化
+    // Bitmap from = makeMask(from_inx);
+    // Bitmap to = makeMask(to_inx);
+    // Bitmap arrow = makeMask(arrow_inx);
+
+    // 取出数据并且bit化
+    Bitmap from = makeMask(getFrom(move));
+    Bitmap to = makeMask(getTo(move));
+    Bitmap arrow = makeMask(getArrow(move));
     // 移动
     if (board.player == Player::BLACK) {
         // clsBit(board.blacks, from);  // 消除原站位障碍判定
@@ -162,16 +167,20 @@ void applyMove(BitBoard& board, Move move) {
 }
 
 void resetMove(BitBoard& board, Move move) {
-    // 取出数据
-    Index ori_from_inx = getFrom(move);
-    Index ori_to_inx = getTo(move);
-    Index ori_arrow_inx = getArrow(move);
+    // // 取出数据
+    // Index ori_from_inx = getFrom(move);
+    // Index ori_to_inx = getTo(move);
+    // Index ori_arrow_inx = getArrow(move);
 
-    // 数据bit化
-    Bitmap ori_to = makeMask(ori_to_inx);
-    Bitmap ori_from = makeMask(ori_from_inx);
-    Bitmap ori_arrow = makeMask(ori_arrow_inx);
+    // // 数据bit化
+    // Bitmap ori_to = makeMask(ori_to_inx);
+    // Bitmap ori_from = makeMask(ori_from_inx);
+    // Bitmap ori_arrow = makeMask(ori_arrow_inx);
 
+    // 取出数据并且bit化
+    Bitmap ori_from = makeMask(getFrom(move));
+    Bitmap ori_to = makeMask(getTo(move));
+    Bitmap ori_arrow = makeMask(getArrow(move));
     // 切换回上一个玩家（必须在updataHash之前！）
     SwitchPlayer(board);
     // 删除箭矢障碍判定
@@ -188,16 +197,17 @@ void resetMove(BitBoard& board, Move move) {
         movBit(board.whites, ori_to, ori_from);
     }
 
-    // 更新局面hash值
-    // HashEngine::Element player =
-    //     (board.player == Player::BLACK) ? HashEngine::Element::PLAYER_BLACK :
-    //     HashEngine::Element::PLAYER_WHITE;
-    board.hash = HashEngine::updataHash(board.hash,
-                                        static_cast<HashEngine::Element>(board.player),
-                                        ori_from_inx,
-                                        ori_to_inx,
-                                        ori_arrow_inx);
-    // player在数值上通过约定保证正确
+    // [ 弃用 ]
+    // // 更新局面hash值
+    // // HashEngine::Element player =
+    // //     (board.player == Player::BLACK) ? HashEngine::Element::PLAYER_BLACK :
+    // //     HashEngine::Element::PLAYER_WHITE;
+    // board.hash = HashEngine::updataHash(board.hash,
+    //                                     static_cast<HashEngine::Element>(board.player),
+    //                                     ori_from_inx,
+    //                                     ori_to_inx,
+    //                                     ori_arrow_inx);
+    // // player在数值上通过约定保证正确
 }
 
 }  // namespace VanitasBot::BitEngine
