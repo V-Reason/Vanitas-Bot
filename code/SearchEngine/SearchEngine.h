@@ -26,6 +26,9 @@
 // }
 
 namespace VanitasBot::SearchEngine {
+// 空步剪枝
+constexpr int ALLOW_NULLMOVE_DEPTH = 3;  // 允许空步剪枝的深度阈值
+constexpr int NULLMOVE_R = 3;            // 空步子树深度衰减常量
 // 渴望窗口
 constexpr int ASPIRATION_DEPTH = 3;    // 开始层数
 constexpr int ASPIRATION_WINDOW = 50;  // 宽度
@@ -71,7 +74,8 @@ TTable::Score PVS(BitEngine::BitBoard& board,
                   HashEngine::Key currHash,
                   TTable::Depth depth,
                   TTable::Score alpha,
-                  TTable::Score beta);
+                  TTable::Score beta,
+                  bool allowNullMove);
 
 // 估值函数
 TTable::Score evaluate(const BitEngine::BitBoard& board);

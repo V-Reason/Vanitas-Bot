@@ -53,7 +53,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
         TTable::Score score;
         while (true) {  // 最多可能搜索两次
             // 搜索
-            score = PVS(board, initHash, depth, alpha, beta);
+            score = PVS(board, initHash, depth, alpha, beta, true);
             // 下跌
             if (score <= alpha && alpha > -TTable::SCORE_INFINITY) {  // 防止死循环
                 alpha = -TTable::SCORE_INFINITY;                      // 开放下界
@@ -100,7 +100,8 @@ TTable::Score PVS(BitEngine::BitBoard& board,
                   HashEngine::Key currHash,
                   TTable::Depth depth,
                   TTable::Score alpha,
-                  TTable::Score beta) {
+                  TTable::Score beta,
+                  bool allowNullMove) {
     // 毎若干搜索后检查一次超时
     static int nodesCnt = 0;
     if (!(++nodesCnt & CHECK_GAP_MASK) && Utilities::Timer::checkTimeouts())
@@ -129,6 +130,40 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // 到达深度限制
     if (depth == 0)
         return evaluate(board);
+
+    // 空步剪枝
+    // 允许空步 && 深度足够 && 不是残局 && 分数不低
+    if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
+        int emptyCell = BitEngine::cntBit(~board.allBlocked());
+        TTable::Score temScore = evaluate(board);
+        if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
+            // 空步模拟
+            int nullDepth = std::max(depth - NULLMOVE_R, 0);  // 绝不能小于0！！！
+            BitEngine::SwitchPlayer(board);
+            HashEngine::Key nexHash = currHash ^ HashEngine::playerBlackKey;
+            // 零窗口特测
+            TTable::Score nullScore
+                = -PVS(board, nexHash, nullDepth - 1, alpha, beta, false);  // 空步子树内部禁止空步
+            // 恢复棋盘
+            BitEngine::SwitchPlayer(board);
+            // 超时检测
+            if (isTimeout_final)
+                return 0;
+            // 空步质量检测
+            // 默认假设 currScore>=nullScore 必然成立，
+            // 所以nullScore>=beta => currScore>=beta
+            // 即证明了beta剪枝，返回逻辑和alpha-beta一致
+            if (nullScore >= beta) {
+                // 分数没被压下去，合格
+                TTable::write({currHash,
+                               /*空步*/ 0,
+                               beta,
+                               static_cast<TTable::Depth>(depth),
+                               TTable::NodeFlag::LOWER_BOUND});
+                return beta;
+            }
+        }
+    }
 
     // 生成走法
     BitEngine::MoveList moveList;
@@ -199,12 +234,12 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         // 搜索
         TTable::Score score;
         if (i == 0)  // 首节点全窗口搜索
-            score = -PVS(board, nexHash, depth - 1, -beta, -alpha);
+            score = -PVS(board, nexHash, depth - 1, -beta, -alpha, true);
         else {  // 零窗口搜索
-            score = -PVS(board, nexHash, depth - 1, -alpha - 1, -alpha);
+            score = -PVS(board, nexHash, depth - 1, -alpha - 1, -alpha, true);
             if (alpha < score && score < beta)  // 可以省一步更新alpha，使用-score
                 score = -PVS(
-                    board, nexHash, depth - 1, -beta, -score);  // 零窗口尝试失败，重新全窗口搜索
+                    board, nexHash, depth - 1, -beta, -score, true);  // 零窗口尝试失败，重新全窗口
         }
 
         // 悔棋

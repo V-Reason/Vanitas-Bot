@@ -35,7 +35,7 @@ class Timer {
     // 编译期不定长数组配置示例
     // static constexpr TimeoutConfig timeoutConfigs[]
     //     = {{100, nullptr}, {500, nullptr}, {900, nullptr}};
-    static inline TimeoutConfig timeoutConfigs[] = {{950, nullptr}};
+    static inline TimeoutConfig timeoutConfigs[] = {{980, nullptr}};
 
     // 检查并更新超时状态（O(1)时间复杂度，无if判断）
     // 注意：循环次数 i 必须和上述数组长度一致
