@@ -37,12 +37,39 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 
     // IDS迭代加深搜索
     BitEngine::Move globalBestMove = 0;
+    TTable::Score alpha = -TTable::SCORE_INFINITY;
+    TTable::Score beta = TTable::SCORE_INFINITY;
+    TTable::Score lastScore = 0;
     int depth = 1;
     for (/*int depth = 1*/; depth <= MAX_DEPTH; ++depth) {
-        TTable::Score score
-            = PVS(board, initHash, depth, -TTable::SCORE_INFINITY, TTable::SCORE_INFINITY);
+        if (depth >= ASPIRATION_DEPTH) {
+            // 设置渴望窗口
+            alpha = std::max(lastScore - ASPIRATION_WINDOW,
+                             static_cast<int>(-TTable::SCORE_INFINITY));
+            beta = std::min(lastScore + ASPIRATION_WINDOW,
+                            static_cast<int>(+TTable::SCORE_INFINITY));
+        }
 
-        // TODO: isTimeout_final检测
+        TTable::Score score;
+        while (true) {  // 最多可能搜索两次
+            // 搜索
+            score = PVS(board, initHash, depth, alpha, beta);
+            // 下跌
+            if (score <= alpha && alpha > -TTable::SCORE_INFINITY) {  // 防止死循环
+                alpha = -TTable::SCORE_INFINITY;                      // 开放下界
+                continue;
+            }
+            // 上溢
+            else if (score >= beta && beta > TTable::SCORE_INFINITY) {
+                beta = TTable::SCORE_INFINITY;  // 开放上界
+                continue;
+            }
+            // 符合预期
+            lastScore = score;
+            break;
+        }
+
+        // 超时，放弃本层结果
         if (isTimeout_final)
             break;
 

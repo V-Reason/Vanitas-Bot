@@ -26,10 +26,14 @@
 // }
 
 namespace VanitasBot::SearchEngine {
+// 渴望窗口
+constexpr int ASPIRATION_DEPTH = 3;    // 开始层数
+constexpr int ASPIRATION_WINDOW = 50;  // 宽度
 // 超时标志
 extern bool isTimeout_final;
-// 配置数据
-constexpr int MAX_DEPTH = 20;                  // 最大搜索深度
+// 最大深度
+constexpr int MAX_DEPTH = 20;
+// 超时检查间隔
 constexpr int CHECK_GAP_MASK = (1 << 13) - 1;  // 取模掩码，毎8192回合检查一次超时，1024为最稳数据
 // 局面情况分类
 constexpr int MIDDLEGAME_PIECES = 44;
