@@ -18,6 +18,191 @@ bool isTimeout_final = false;
 // 临时计时器
 // auto startTime = std::chrono::steady_clock::now();
 // bool isTimeout_final = false;
+
+// 状态
+enum class State : int {
+    TT_MOVE,     // 置换表走法
+    GEN_ALL,     // 全量生成走法
+    KILLER_CHK,  // 杀手合法检查
+    KILLER_1,    // 杀手1
+    KILLER_2,    // 杀手2
+    CAL_WEIGHT,  // 为剩余走法算权重
+    SORT,        //   走法排序
+    NORMAL,      // 逐取最高分
+    NONE         // 状态耗尽
+};
+
+// 状态机
+class StateMachine {
+   private:
+    const BitEngine::BitBoard& board;
+    BitEngine::Move ttMove;
+    BitEngine::Move killer1;
+    BitEngine::Move killer2;
+
+    State currState = State::TT_MOVE;
+
+    BitEngine::MoveList moveList;
+    int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE]{};
+    // int indices[BitEngine::MAX_AMAZON_MOVE_TYPE]{};  // 索引数组，解决排序问题
+    int currIndex = 0;
+
+    // TODO: 判断走法是否合法
+    bool isValid(BitEngine::Move move) {
+        for (int i = 0; i < moveList.count; ++i) {
+            if (moveList.moves[i] == move)
+                return true;
+        }
+        return false;
+    }
+
+    // bool isKiller1OK = false;
+    // bool isKiller2OK = false;
+
+    inline void toNextState() {
+        // if(currState != State::NONE)更安全一点，不过State::NONE里不写toNextState()就好了
+        currState = static_cast<State>(static_cast<int>(currState) + 1);
+    }
+
+   public:
+    // 必须是轻量构造！！！
+    StateMachine(const BitEngine::BitBoard& board,
+                 BitEngine::Move ttMove,
+                 BitEngine::Move killer1,
+                 BitEngine::Move killer2)
+        : board(board), ttMove(ttMove), killer1(killer1), killer2(killer2) {}
+
+    bool hasNext() {
+        return currState != State::NONE;
+    }
+
+    BitEngine::Move nextMove() {
+        // 使用fallthrough贯通技巧，自动进入下一个状态
+        switch (currState) {
+            case State::TT_MOVE:
+                toNextState();
+                // 无条件信任置换表的合法性
+                if (ttMove != 0)
+                    return ttMove;
+            [[fallthrough]]
+
+            case State::GEN_ALL:
+                toNextState();
+                BitEngine::generateAllMoves(board, moveList);
+            [[fallthrough]]
+
+            case State::KILLER_CHK:
+                toNextState();
+                // if ((killer1 != 0 && killer1 != ttMove) || (killer2 != 0 && killer2 != ttMove)) {
+                //     for (int i = 0; i < moveList.count; ++i) {
+                //         if (!isKiller1OK) {
+                //             isKiller1OK = (moveList.moves[i] == killer1);
+                //         }
+                //         if (!isKiller2OK) {
+                //             isKiller2OK = (moveList.moves[i] == killer2);
+                //         }
+                //     }
+                // }
+            [[fallthrough]]
+
+            case State::KILLER_1:
+                toNextState();
+                if (killer1 != 0 && killer1 != ttMove && isValid(killer1)) {
+                    return killer1;
+                }
+            [[fallthrough]]
+
+            case State::KILLER_2:
+                toNextState();
+                if (killer2 != 0 && killer2 != ttMove && killer1 != killer2 && isValid(killer2)) {
+                    return killer2;
+                }
+            [[fallthrough]]
+
+            case State::CAL_WEIGHT:
+                toNextState();
+                for (int i = 0; i < moveList.count; ++i) {
+                    BitEngine::Move move = moveList.moves[i];
+                    if (move == ttMove || move == killer1 || move == killer2) {
+                        // 已经验证过了，过滤
+                        moveWeight[i] = INVAILD_WEIGHT;
+                    } else {
+                        // 使用历史表
+                        using namespace BitEngine;
+                        moveWeight[i] = HTable[getFrom(move)][getTo(move)][getArrow(move)];
+                    }
+                }
+            [[fallthrough]]
+
+            case State::SORT:
+                toNextState();
+                [[fallthrough]];
+
+            case State::NORMAL: {
+                if (currIndex >= moveList.count) {
+                    toNextState();
+                    return nextMove();
+                }
+
+                // 实时选择排序
+                int maxIdx = currIndex;
+                for (int j = currIndex + 1; j < moveList.count; ++j) {
+                    if (moveWeight[j] > moveWeight[maxIdx]) {
+                        maxIdx = j;
+                    }
+                }
+
+                if (moveWeight[maxIdx] == INVAILD_WEIGHT) {
+                    currIndex++;
+                    return nextMove();
+                }
+
+                std::swap(moveList.moves[currIndex], moveList.moves[maxIdx]);
+                std::swap(moveWeight[currIndex], moveWeight[maxIdx]);
+
+                BitEngine::Move best = moveList.moves[currIndex];
+                currIndex++;
+                return best;
+            }
+
+            case State::NONE:
+                return 0;
+
+                // [ 备用 ]
+                // case State::SORT:
+                //     toNextState();
+                //     // 排序
+                //     // 两种方案：选择排序、快速排序
+                //     //
+                //     选择排序的性质好，随用随取，不用一次性全排，易处理平行数组/映射数组，“偶尔？”会有运气差的情况
+                //     // 快速排序稳定但复杂
+                //     // 以下使用 快速排序+索引数组 解决平行数组排序问题
+                //     for (int i = 0; i < moveList.count; ++i) {
+                //         indices[i] = i;
+                //     }
+                //     std::sort(indices, indices + moveList.count, [&](int idxA, int idxB) {
+                //         return moveWeight[idxA] > moveWeight[idxB];  // 降序
+                //     });
+                // [[fallthrough]]
+
+                // case State::NORMAL: {
+                //     if (currIndex >= moveList.count) {
+                //         toNextState();
+                //         return nextMove();  //
+                //         抽取结束，不过为了接口规范，可以再递归一层，避免未来扩展，现在是会返回0
+                //     }
+                //     int realIdx = indices[currIndex++];
+                //     if (moveWeight[realIdx] == INVAILD_WEIGHT) {
+                //         return nextMove();
+                //     }
+                //     return moveList.moves[realIdx];
+                // }
+
+        }  // end switch
+        return 0;
+    }  // end func
+};  // end class
+
 BitEngine::Move search(BitEngine::BitBoard& board) {
     // // 临时：每次进入主搜时，强行重置一次计时器起点
     // startTime = std::chrono::steady_clock::now();
@@ -60,7 +245,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
                 continue;
             }
             // 上溢
-            else if (score >= beta && beta > TTable::SCORE_INFINITY) {
+            else if (score >= beta && beta < TTable::SCORE_INFINITY) {
                 beta = TTable::SCORE_INFINITY;  // 开放上界
                 continue;
             }
@@ -73,7 +258,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
         if (isTimeout_final)
             break;
 
-        // [ 或许1s中的搜索可以不用衰减? ]
+        // [ 或许1s中的搜索可以不用衰减?有点浪费资源了 ]
         // // 衰减HTable
         // decayHTable();
 
@@ -131,66 +316,68 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     if (depth == 0)
         return evaluate(board);
 
-    // 空步剪枝
-    // 允许空步 && 深度足够 && 不是残局 && 分数不低
-    if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
-        int emptyCell = BitEngine::cntBit(~board.allBlocked());
-        TTable::Score temScore = evaluate(board);
-        if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
-            // 空步模拟
-            int nullDepth = std::max(depth - NULLMOVE_R, 0);  // 绝不能小于0！！！
-            BitEngine::SwitchPlayer(board);
-            HashEngine::Key nexHash = currHash ^ HashEngine::playerBlackKey;
-            // 零窗口特测
-            TTable::Score nullScore
-                = -PVS(board, nexHash, nullDepth - 1, alpha, beta, false);  // 空步子树内部禁止空步
-            // 恢复棋盘
-            BitEngine::SwitchPlayer(board);
-            // 超时检测
-            if (isTimeout_final)
-                return 0;
-            // 空步质量检测
-            // 默认假设 currScore>=nullScore 必然成立，
-            // 所以nullScore>=beta => currScore>=beta
-            // 即证明了beta剪枝，返回逻辑和alpha-beta一致
-            if (nullScore >= beta) {
-                // 分数没被压下去，合格
-                TTable::write({currHash,
-                               /*空步*/ 0,
-                               beta,
-                               static_cast<TTable::Depth>(depth),
-                               TTable::NodeFlag::LOWER_BOUND});
-                return beta;
-            }
-        }
-    }
+    // // 空步剪枝
+    // // 允许空步 && 深度足够 && 不是残局 && 分数不低
+    // if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
+    //     int emptyCell = BitEngine::cntBit(~board.allBlocked());
+    //     TTable::Score temScore = evaluate(board);
+    //     if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
+    //         // 空步模拟
+    //         int nullDepth = std::max(depth - NULLMOVE_R, 0);  // 绝不能小于0！！！
+    //         BitEngine::SwitchPlayer(board);
+    //         HashEngine::Key nexHash = currHash ^ HashEngine::playerBlackKey;
+    //         // 零窗口速测
+    //         TTable::Score nullScore
+    //             = -PVS(board, nexHash, nullDepth, -beta, -beta + 1, false);  //
+    //             空步子树内部禁止空步
+    //         // 恢复棋盘
+    //         BitEngine::SwitchPlayer(board);
+    //         // 超时检测
+    //         if (isTimeout_final)
+    //             return 0;
+    //         // 空步质量检测
+    //         // 默认假设 currScore>=nullScore 必然成立，
+    //         // 所以nullScore>=beta => currScore>=beta
+    //         // 即证明了beta剪枝，返回逻辑和alpha-beta一致
+    //         if (nullScore >= beta) {
+    //             // 分数没被压下去，合格
+    //             TTable::write({currHash,
+    //                            /*空步*/
+    //                            0,
+    //                            beta,
+    //                            static_cast<TTable::Depth>(depth),
+    //                            TTable::NodeFlag::LOWER_BOUND});
+    //             return beta;
+    //         }
+    //     }  // end if
+    // }  // end if
 
-    // 生成走法
-    BitEngine::MoveList moveList;
-    BitEngine::generateAllMoves(board, moveList);
+    // // 生成走法
+    // BitEngine::MoveList moveList;
+    // BitEngine::generateAllMoves(board, moveList);
 
-    // 终局判断
-    if (moveList.count == 0) {
-        return -TTable::SCORE_MATE + depth;  // +depth 争取死慢点/赢快点
-    }
+    // // 终局判断
+    // if (moveList.count == 0) {
+    //     return -TTable::SCORE_MATE + depth;  // +depth 争取死慢点/赢快点
+    // }
 
-    // TODO: 走法排序
+    // DONE: 走法排序，放在状态机里了
     // 权重定义
     // 1. 置换表
     // 2. 杀手表
     // 3. 历史表
-    int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];
-    for (int i = 0; i < moveList.count; ++i) {
-        BitEngine::Move m = moveList.moves[i];
-        if (m == ttMove)
-            moveWeight[i] = TTABLE_WEIGHT;
-        else if (m == KTable[depth][0] || m == KTable[depth][1])
-            moveWeight[i] = KTABLE_WEIGHT;
-        else {
-            using namespace BitEngine;
-            moveWeight[i] = HTable[getFrom(m)][getTo(m)][getArrow(m)];
-        }
-    }
+    // int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];
+    // for (int i = 0; i < moveList.count; ++i) {
+    //     BitEngine::Move m = moveList.moves[i];
+    //     if (m == ttMove)
+    //         moveWeight[i] = TTABLE_WEIGHT;
+    //     else if (m == KTable[depth][0] || m == KTable[depth][1])
+    //         moveWeight[i] = KTABLE_WEIGHT;
+    //     else {
+    //         using namespace BitEngine;
+    //         moveWeight[i] = HTable[getFrom(m)][getTo(m)][getArrow(m)];
+    //     }
+    // }
 
     // [ 已弃用 ]
     // // 首节点，全窗口搜索
@@ -202,22 +389,29 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // if (!(alpha >= beta))  // beta剪枝失败，进入循环，从 i=1 开始
 
     // 搜索
+    StateMachine stateMachine(board, ttMove, KTable[depth][0], KTable[depth][1]);
+
     TTable::Score bestScore = -TTable::SCORE_INFINITY;
-    BitEngine::Move bestMove = moveList.moves[0];
+    BitEngine::Move bestMove = 0;
     TTable::Score oriAlpha = alpha;
 
-    for (int i = 0; i < moveList.count; ++i) {
-        // 实时选择排序 -> 性质好，不需要全排一遍
-        int maxInx = i;
-        for (int j = i + 1; j < moveList.count; ++j) {
-            if (moveWeight[j] > moveWeight[maxInx])
-                maxInx = j;
-        }
-        std::swap(moveList.moves[maxInx], moveList.moves[i]);
-        std::swap(moveWeight[maxInx], moveWeight[i]);
+    int moveCnt = 0;
+    BitEngine::Move move;
 
-        // 取Move，即为权重最高的
-        BitEngine::Move move = moveList.moves[i];
+    // for (int i = 0; i < moveList.count; ++i) {
+    while ((move = stateMachine.nextMove()) != 0) {
+        ++moveCnt;
+        // // 实时选择排序 -> 性质好，不需要全排一遍
+        // int maxInx = i;
+        // for (int j = i + 1; j < moveList.count; ++j) {
+        //     if (moveWeight[j] > moveWeight[maxInx])
+        //         maxInx = j;
+        // }
+        // std::swap(moveList.moves[maxInx], moveList.moves[i]);
+        // std::swap(moveWeight[maxInx], moveWeight[i]);
+
+        // // 取Move，即为权重最高的
+        // BitEngine::Move move = moveList.moves[i];
 
         // 先计算哈希
         // board.player在数值上通过约定保证正确
@@ -233,13 +427,13 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
         // 搜索
         TTable::Score score;
-        if (i == 0)  // 首节点全窗口搜索
-            score = -PVS(board, nexHash, depth - 1, -beta, -alpha, true);
+        if (moveCnt == 1)  // 首节点全窗口搜索
+            score = -PVS(board, nexHash, depth - 1, -beta, -alpha, allowNullMove);
         else {  // 零窗口搜索
-            score = -PVS(board, nexHash, depth - 1, -alpha - 1, -alpha, true);
+            score = -PVS(board, nexHash, depth - 1, -alpha - 1, -alpha, allowNullMove);
             if (alpha < score && score < beta)  // 可以省一步更新alpha，使用-score
-                score = -PVS(
-                    board, nexHash, depth - 1, -beta, -score, true);  // 零窗口尝试失败，重新全窗口
+                // 零窗口尝试失败，重新全窗口
+                score = -PVS(board, nexHash, depth - 1, -beta, -score, allowNullMove);
         }
 
         // 悔棋
@@ -272,6 +466,11 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         }
     }
 
+    // 终局判断
+    if (moveCnt == 0 && !stateMachine.hasNext()) {
+        return -TTable::SCORE_MATE + depth;  // +depth 争取死慢点/赢快点
+    }
+
     // 写入TTable置换表
     TTable::NodeFlag flag = TTable::NodeFlag::EXACT;
     if (bestScore <= oriAlpha)
@@ -282,6 +481,11 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
     // 返回最优解
     return bestScore;
+}
+
+// TODO: 轻量级评估函数
+TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
+    return 0;
 }
 
 TTable::Score evaluate(const BitEngine::BitBoard& board) {

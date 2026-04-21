@@ -56,11 +56,13 @@ constexpr int W_TER_A = 4;  // 领地
 constexpr int W_TER_B = 8;
 
 // 启发数据
-using MoveWeight = int;                 // 走法权重
-constexpr int KILLER_NUM = 2;           // 杀手数量
-constexpr int TTABLE_WEIGHT = 1 << 30;  // 置换表权重
-constexpr int KTABLE_WEIGHT = 1 << 29;  // 杀手权重
-constexpr int HTABLE_WEIGHT = 1 << 28;  // 历史表权重
+using MoveWeight = int;             // 走法权重
+constexpr int INVAILD_WEIGHT = -1;  // 无效权重
+constexpr int KILLER_NUM = 2;       // 杀手数量（不要轻易改动，有些代码写死了）
+// [ 弃用 ]
+// constexpr int TTABLE_WEIGHT = 1 << 30;  // 置换表权重
+// constexpr int KTABLE_WEIGHT = 1 << 29;  // 杀手权重
+// constexpr int HTABLE_WEIGHT = 1 << 28;  // 历史表权重
 
 extern BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM];  // 杀手表
 extern MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
@@ -78,6 +80,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
                   bool allowNullMove);
 
 // 估值函数
+TTable::Score evaluateLite(const BitEngine::BitBoard& board);
 TTable::Score evaluate(const BitEngine::BitBoard& board);
 TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
                               BitEngine::Bitmap empty,
