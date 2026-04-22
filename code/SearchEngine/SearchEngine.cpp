@@ -1,13 +1,45 @@
-#define DEBUG
+#define MONITOR
+#define MONITOR_LITE
 
 #include "SearchEngine.h"
 
 #include <algorithm>
 #include <cstdio>
 
-// 临时测试探针
-uint64_t stat_nodes_evaluated = 0;
-uint64_t stat_tt_hits = 0;
+// // 临时测试探针
+// uint64_t stat_nodes_evaluated = 0;
+// uint64_t stat_tt_hits = 0;
+#ifdef MONITOR
+
+#ifndef MONITOR_LITE
+#define MONITOR_LITE
+#endif
+
+struct SearchStats {
+    uint64_t evals;      // 调用 evaluate 的次数
+    uint64_t evalsLite;  // 调用 evaluateLite 的次数
+    uint64_t evalsEnd;   // 调用 evaluateEnd 的次数
+
+    uint64_t ttHits;     // TT 成功剪枝次数
+    uint64_t nmpTrials;  // 尝试 NMP 的次数
+    uint64_t nmpCuts;    // NMP 成功剪枝次数
+
+    uint64_t betaCutoffs;     // 总 Beta 剪枝次数
+    uint64_t ttCutoffs;       // 置换表走法引发的剪枝
+    uint64_t killer1Cutoffs;  // 杀手1引发的剪枝
+    uint64_t killer2Cutoffs;  // 杀手2引发的剪枝
+    uint64_t historyCutoffs;  // 历史表走法（普通走法）引发的剪枝
+
+    uint64_t historyRankSum;  // 历史走法剪枝时，它排在第几个？（用于算平均排名）
+
+} stats;
+#endif
+#ifdef MONITOR_LITE
+struct SearchStatsLite {
+    uint64_t nodes;     // 遍历的总节点
+    uint64_t maxDepth;  // 实际达到的深度
+} statsLite;
+#endif
 
 namespace VanitasBot::SearchEngine {
 BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
@@ -19,6 +51,7 @@ bool isTimeout_final = false;
 // auto startTime = std::chrono::steady_clock::now();
 // bool isTimeout_final = false;
 
+#pragma region 状态机
 // 状态
 enum class State : int {
     TT_MOVE,     // 置换表走法
@@ -32,7 +65,7 @@ enum class State : int {
     NONE         // 状态耗尽
 };
 
-// 状态机
+// 状态机（实现延迟计算）
 class StateMachine {
    private:
     const BitEngine::BitBoard& board;
@@ -139,66 +172,65 @@ class StateMachine {
                 }
                 [[fallthrough]];
 
-            // case State::SORT:
-            //     toNextState();
-            //     [[fallthrough]];
-
-            // case State::NORMAL: {
-            //     if (currIndex >= moveList.count) {
-            //         toNextState();
-            //         return nextMove();
-            //     }
-
-            //     // 实时选择排序
-            //     int maxIdx = currIndex;
-            //     for (int j = currIndex + 1; j < moveList.count; ++j) {
-            //         if (moveWeight[j] > moveWeight[maxIdx]) {
-            //             maxIdx = j;
-            //         }
-            //     }
-
-            //     if (moveWeight[maxIdx] == INVAILD_WEIGHT) {
-            //         currIndex++;
-            //         return nextMove();
-            //     }
-
-            //     std::swap(moveList.moves[currIndex], moveList.moves[maxIdx]);
-            //     std::swap(moveWeight[currIndex], moveWeight[maxIdx]);
-
-            //     BitEngine::Move best = moveList.moves[currIndex];
-            //     currIndex++;
-            //     return best;
-            // }
-
-            // [备用]
             case State::SORT:
                 toNextState();
-                // 排序
-                // 两种方案：选择排序、快速排序
-                // 选择排序的性质好，随用随取，不用一次性全排，易处理平行数组
-                // 映射数组，“偶尔？”会有运气差的情况
-                // 快速排序稳定但复杂
-                // 以下使用 快速排序+索引数组 解决平行数组排序问题
-                for (int i = 0; i < moveList.count; ++i) {
-                    indices[i] = i;
-                }
-                std::sort(indices, indices + moveList.count, [&](int idxA, int idxB) {
-                    return moveWeight[idxA] > moveWeight[idxB];  // 降序
-                });
                 [[fallthrough]];
 
             case State::NORMAL: {
                 if (currIndex >= moveList.count) {
                     toNextState();
-                    return nextMove();  //
-                    // 抽取结束，不过为了接口规范，可以再递归一层，避免未来扩展，现在是会返回0
-                }
-                int realIdx = indices[currIndex++];
-                if (moveWeight[realIdx] == INVAILD_WEIGHT) {
                     return nextMove();
                 }
-                return moveList.moves[realIdx];
+
+                // 实时选择排序
+                int maxIdx = currIndex;
+                for (int j = currIndex + 1; j < moveList.count; ++j) {
+                    if (moveWeight[j] > moveWeight[maxIdx]) {
+                        maxIdx = j;
+                    }
+                }
+
+                std::swap(moveList.moves[currIndex], moveList.moves[maxIdx]);
+                std::swap(moveWeight[currIndex], moveWeight[maxIdx]);
+
+                if (moveWeight[maxIdx] == INVAILD_WEIGHT) {
+                    currIndex++;
+                    return nextMove();
+                }
+
+                return moveList.moves[currIndex++];
             }
+
+                // [备用]
+                // case State::SORT:
+                //     toNextState();
+                //     // 排序
+                //     // 两种方案：选择排序、快速排序
+                //     // 选择排序的性质好，随用随取，不用一次性全排，易处理平行数组
+                //     // 映射数组，“偶尔？”会有运气差的情况
+                //     // 快速排序稳定但复杂
+                //     // 以下使用 快速排序+索引数组 解决平行数组排序问题
+                //     for (int i = 0; i < moveList.count; ++i) {
+                //         indices[i] = i;
+                //     }
+                //     std::sort(indices, indices + moveList.count, [&](int idxA, int idxB) {
+                //         return moveWeight[idxA] > moveWeight[idxB];  // 降序
+                //     });
+                //     [[fallthrough]];
+
+                // case State::NORMAL: {
+                //     if (currIndex >= moveList.count) {
+                //         toNextState();
+                //         return nextMove();  //
+                //         //
+                //         抽取结束，不过为了接口规范，可以再递归一层，避免未来扩展，现在是会返回0
+                //     }
+                //     int realIdx = indices[currIndex++];
+                //     if (moveWeight[realIdx] == INVAILD_WEIGHT) {
+                //         return nextMove();
+                //     }
+                //     return moveList.moves[realIdx];
+                // }
 
             case State::NONE:
                 return 0;
@@ -207,6 +239,7 @@ class StateMachine {
         return 0;
     }  // end func
 };  // end class
+#pragma endregion
 
 BitEngine::Move search(BitEngine::BitBoard& board) {
     // // 临时：每次进入主搜时，强行重置一次计时器起点
@@ -277,11 +310,34 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
             break;
     }
 
-    // 调试
-    printf("搜索报告：\n");
-    printf("最大深度: %d\n", depth);
-    printf("评估节点: %llu\n", stat_nodes_evaluated);
-    printf("TT命中: %llu\n", stat_tt_hits);
+// // 调试
+// printf("搜索报告：\n");
+// printf("最大深度: %d\n", depth);
+// printf("评估节点: %llu\n", stat_nodes_evaluated);
+// printf("TT命中: %llu\n", stat_tt_hits);
+// 监测探针
+#ifdef MONITOR_LITE
+    statsLite.maxDepth = depth;
+
+    printf("搜索报告:\n");
+    printf("最大深度: %llu\n", statsLite.maxDepth);
+    printf("遍历总节点: %llu\n", statsLite.nodes);
+#endif
+#ifdef MONITOR
+    printf("评估次数: %llu\n", stats.evals + stats.evalsLite + stats.evalsEnd);
+    printf("   全量eval %llu\n", stats.evals);
+    printf("   轻量lite %llu\n", stats.evalsLite);
+    printf("   残局end %llu\n", stats.evalsEnd);
+    printf("置换表成功: %llu\n", stats.ttHits);
+    printf("尝试空步: %llu\n", stats.nmpTrials);
+    printf("空步剪枝: %llu\n", stats.nmpCuts);
+    printf("总beta剪枝: %llu\n", stats.betaCutoffs);
+    printf("   置换表: %llu\n", stats.ttCutoffs);
+    printf("   杀手1: %llu\n", stats.killer1Cutoffs);
+    printf("   杀手2: %llu\n", stats.killer2Cutoffs);
+    printf("   历史表: %llu\n", stats.historyCutoffs);
+    printf("   历史表平均排名: %llu\n", stats.historyRankSum / stats.historyCutoffs);
+#endif
 
     return globalBestMove;
 }
@@ -292,6 +348,11 @@ TTable::Score PVS(BitEngine::BitBoard& board,
                   TTable::Score alpha,
                   TTable::Score beta,
                   bool allowNullMove) {
+    // 监测探针
+#ifdef MONITOR_LITE
+    ++statsLite.nodes;
+#endif
+
     // 毎若干搜索后检查一次超时
     static int nodesCnt = 0;
     if (!(++nodesCnt & CHECK_GAP_MASK) && Utilities::Timer::checkTimeouts())
@@ -303,8 +364,12 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     TTable::TTableData ttData;
     BitEngine::Move ttMove = 0;  // 用于记录tt中的最优解，用于排序
     if (TTable::read(currHash, ttData) && ttData.depth >= depth) {
-        // 调试
-        stat_tt_hits++;
+        // // 调试
+        // stat_tt_hits++;
+        // 监测探针
+#ifdef MONITOR
+        ++stats.ttHits;
+#endif
         // 尝试剪枝
         if (ttData.flag == TTable::NodeFlag::EXACT)
             return ttData.score;
@@ -312,7 +377,10 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             return beta;
         if (ttData.flag == TTable::NodeFlag::UPPER_BOUND && ttData.score <= alpha)
             return alpha;
-        stat_tt_hits--;
+        // stat_tt_hits--;
+#ifdef MONITOR
+        --stats.ttHits;
+#endif
         // 剪枝失败，记录bestMove
         ttMove = ttData.bestMove;
     }
@@ -325,8 +393,12 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // 允许空步 && 深度足够 && 不是残局 && 分数不低
     if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
         int emptyCell = BitEngine::cntBit(~board.allBlocked());
-        TTable::Score temScore = evaluate(board);
+        TTable::Score temScore = evaluateLite(board);
         if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
+            // 监测探针
+#ifdef MONITOR
+            ++stats.nmpTrials;
+#endif
             // 空步模拟
             int nullDepth = std::max(depth - NULLMOVE_R, 0);  // 绝不能小于0！！！
             BitEngine::SwitchPlayer(board);
@@ -344,6 +416,10 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             // 所以nullScore>=beta => currScore>=beta
             // 即证明了beta剪枝，返回逻辑和alpha-beta一致
             if (nullScore >= beta) {
+                // 监测探针
+#ifdef MONITOR
+                ++stats.nmpCuts;
+#endif
                 // 分数没被压下去，合格
                 TTable::write({currHash,
                                /*空步*/
@@ -456,6 +532,21 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             alpha = score;
         // beta剪枝
         if (alpha >= beta) {
+            // 监测探针
+#ifdef MONITOR
+            ++stats.betaCutoffs;
+            if (moveCnt == 1)
+                ++stats.ttCutoffs;
+            else if (move == KTable[depth][0])
+                ++stats.killer1Cutoffs;
+            else if (move == KTable[depth][1])
+                ++stats.killer2Cutoffs;
+            else {
+                ++stats.historyCutoffs;
+                stats.historyRankSum += moveCnt;
+            }
+#endif
+
             // 更新杀手
             if (move != KTable[depth][0]) {  // 简易循环数组
                 KTable[depth][1] = KTable[depth][0];
@@ -488,12 +579,56 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
 // TODO: 轻量级评估函数
 TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
-    return 0;
+    // 监测探针
+#ifdef MONITOR
+    ++stats.evalsLite;
+#endif
+
+    using namespace BitEngine;
+    // 分辨敌我
+    Bitmap myAmazons, opAmazons;
+    if (board.player == Player::BLACK) {
+        myAmazons = board.blacks;
+        opAmazons = board.whites;
+    } else {
+        myAmazons = board.whites;
+        opAmazons = board.blacks;
+    }
+
+    // 障碍与空地缓存
+    Bitmap allBlocked = board.allBlocked();
+
+    // 机动性评估：
+    // 汇总一步能到达的所有格子
+    Bitmap myReach = 0;
+    Bitmap me = myAmazons;
+    while (me) {
+        Index idx = fnlBit(me);
+        myReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        kicBit(me);
+    }
+    Bitmap opReach = 0;
+    Bitmap op = opAmazons;
+    while (op) {
+        Index idx = fnlBit(op);
+        opReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        kicBit(op);
+    }
+    // 量化
+    int myMobility = cntBit(myReach);
+    int opMobility = cntBit(opReach);
+
+    // 计算总分
+    return LITE_FACTOR * (myMobility - opMobility);
 }
 
 TTable::Score evaluate(const BitEngine::BitBoard& board) {
-    // 调试
-    stat_nodes_evaluated++;
+    // // 调试
+    // stat_nodes_evaluated++;
+    // 监测探针
+#ifdef MONITOR
+    ++stats.evals;
+#endif
 
     using namespace BitEngine;
     // 分辨敌我
@@ -571,6 +706,12 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
                               BitEngine::Bitmap empty,
                               BitEngine::Bitmap myAmazons,
                               BitEngine::Bitmap opAmazons) {
+    // 监测探针
+#ifdef MONITOR
+    --stats.evals;
+    ++stats.evalsEnd;
+#endif
+
     using namespace BitEngine;
     // 缓存
     TTable::Score score = 0;

@@ -23,11 +23,18 @@ int main() {
     Logger::showBitboard(board);
     IOEngine::readInputAndRecover(board);
 
-    // 这是一个模拟真实比赛到了第 30 步左右的残破盘面
+    // 模拟残局：第 30 步左右
     board.blacks = 0x0000000000040100ULL;  // 黑皇后
     board.whites = 0x0008100000000000ULL;  // 白皇后
     board.arrows = 0x0761284A1248021FULL;  // 散落的箭矢
     board.player = BitEngine::Player::BLACK;
+
+    // // 模拟中局：双方各射出约12-14支箭
+    // board.blacks = 0x0400040000080400ULL;
+    // board.whites = 0x0020200000202000ULL;
+    // board.arrows = 0x8244910248240091ULL;
+    // board.player = BitEngine::Player::BLACK;
+
     Logger::showBitboard(board);
 
     BitEngine::Move chosenMove;

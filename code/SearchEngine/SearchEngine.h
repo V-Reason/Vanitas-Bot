@@ -54,6 +54,7 @@ constexpr int W_MOB_A = 6;  // 机动性
 constexpr int W_MOB_B = 2;
 constexpr int W_TER_A = 4;  // 领地
 constexpr int W_TER_B = 8;
+constexpr int LITE_FACTOR = (W_MOB_A + W_TER_B + W_TER_A + W_TER_B) / 2;  // Lite版本系数
 
 // 启发数据
 using MoveWeight = int;             // 走法权重
