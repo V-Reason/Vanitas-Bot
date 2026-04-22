@@ -27,7 +27,7 @@ enum class State : int {
     KILLER_1,    // 杀手1
     KILLER_2,    // 杀手2
     CAL_WEIGHT,  // 为剩余走法算权重
-    SORT,        //   走法排序
+    SORT,        // 走法排序
     NORMAL,      // 逐取最高分
     NONE         // 状态耗尽
 };
@@ -44,7 +44,7 @@ class StateMachine {
 
     BitEngine::MoveList moveList;
     int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE]{};
-    // int indices[BitEngine::MAX_AMAZON_MOVE_TYPE]{};  // 索引数组，解决排序问题
+    int indices[BitEngine::MAX_AMAZON_MOVE_TYPE]{};  // 索引数组，解决排序问题
     int currIndex = 0;
 
     // TODO: 判断走法是否合法
@@ -56,8 +56,8 @@ class StateMachine {
         return false;
     }
 
-    // bool isKiller1OK = false;
-    // bool isKiller2OK = false;
+    bool isKiller1OK = false;
+    bool isKiller2OK = false;
 
     inline void toNextState() {
         // if(currState != State::NONE)更安全一点，不过State::NONE里不写toNextState()就好了
@@ -84,40 +84,45 @@ class StateMachine {
                 // 无条件信任置换表的合法性
                 if (ttMove != 0)
                     return ttMove;
-            [[fallthrough]]
+                [[fallthrough]];
 
             case State::GEN_ALL:
                 toNextState();
                 BitEngine::generateAllMoves(board, moveList);
-            [[fallthrough]]
+                [[fallthrough]];
 
             case State::KILLER_CHK:
                 toNextState();
-                // if ((killer1 != 0 && killer1 != ttMove) || (killer2 != 0 && killer2 != ttMove)) {
-                //     for (int i = 0; i < moveList.count; ++i) {
-                //         if (!isKiller1OK) {
-                //             isKiller1OK = (moveList.moves[i] == killer1);
-                //         }
-                //         if (!isKiller2OK) {
-                //             isKiller2OK = (moveList.moves[i] == killer2);
-                //         }
-                //     }
-                // }
-            [[fallthrough]]
+                if ((killer1 != 0 && killer1 != ttMove) || (killer2 != 0 && killer2 != ttMove)) {
+                    for (int i = 0; i < moveList.count; ++i) {
+                        if (!isKiller1OK) {
+                            isKiller1OK = (moveList.moves[i] == killer1);
+                        }
+                        if (!isKiller2OK) {
+                            isKiller2OK = (moveList.moves[i] == killer2);
+                        }
+                    }
+                }
+                [[fallthrough]];
 
             case State::KILLER_1:
                 toNextState();
-                if (killer1 != 0 && killer1 != ttMove && isValid(killer1)) {
+                if (isKiller1OK)
                     return killer1;
-                }
-            [[fallthrough]]
+                // if (killer1 != 0 && killer1 != ttMove && isValid(killer1)) {
+                //     return killer1;
+                // }
+                [[fallthrough]];
 
             case State::KILLER_2:
                 toNextState();
-                if (killer2 != 0 && killer2 != ttMove && killer1 != killer2 && isValid(killer2)) {
+                if (isKiller2OK)
                     return killer2;
-                }
-            [[fallthrough]]
+                // if (killer2 != 0 && killer2 != ttMove && killer1 != killer2 && isValid(killer2))
+                // {
+                //     return killer2;
+                // }
+                [[fallthrough]];
 
             case State::CAL_WEIGHT:
                 toNextState();
@@ -132,71 +137,71 @@ class StateMachine {
                         moveWeight[i] = HTable[getFrom(move)][getTo(move)][getArrow(move)];
                     }
                 }
-            [[fallthrough]]
+                [[fallthrough]];
 
+            // case State::SORT:
+            //     toNextState();
+            //     [[fallthrough]];
+
+            // case State::NORMAL: {
+            //     if (currIndex >= moveList.count) {
+            //         toNextState();
+            //         return nextMove();
+            //     }
+
+            //     // 实时选择排序
+            //     int maxIdx = currIndex;
+            //     for (int j = currIndex + 1; j < moveList.count; ++j) {
+            //         if (moveWeight[j] > moveWeight[maxIdx]) {
+            //             maxIdx = j;
+            //         }
+            //     }
+
+            //     if (moveWeight[maxIdx] == INVAILD_WEIGHT) {
+            //         currIndex++;
+            //         return nextMove();
+            //     }
+
+            //     std::swap(moveList.moves[currIndex], moveList.moves[maxIdx]);
+            //     std::swap(moveWeight[currIndex], moveWeight[maxIdx]);
+
+            //     BitEngine::Move best = moveList.moves[currIndex];
+            //     currIndex++;
+            //     return best;
+            // }
+
+            // [备用]
             case State::SORT:
                 toNextState();
+                // 排序
+                // 两种方案：选择排序、快速排序
+                // 选择排序的性质好，随用随取，不用一次性全排，易处理平行数组
+                // 映射数组，“偶尔？”会有运气差的情况
+                // 快速排序稳定但复杂
+                // 以下使用 快速排序+索引数组 解决平行数组排序问题
+                for (int i = 0; i < moveList.count; ++i) {
+                    indices[i] = i;
+                }
+                std::sort(indices, indices + moveList.count, [&](int idxA, int idxB) {
+                    return moveWeight[idxA] > moveWeight[idxB];  // 降序
+                });
                 [[fallthrough]];
 
             case State::NORMAL: {
                 if (currIndex >= moveList.count) {
                     toNextState();
+                    return nextMove();  //
+                    // 抽取结束，不过为了接口规范，可以再递归一层，避免未来扩展，现在是会返回0
+                }
+                int realIdx = indices[currIndex++];
+                if (moveWeight[realIdx] == INVAILD_WEIGHT) {
                     return nextMove();
                 }
-
-                // 实时选择排序
-                int maxIdx = currIndex;
-                for (int j = currIndex + 1; j < moveList.count; ++j) {
-                    if (moveWeight[j] > moveWeight[maxIdx]) {
-                        maxIdx = j;
-                    }
-                }
-
-                if (moveWeight[maxIdx] == INVAILD_WEIGHT) {
-                    currIndex++;
-                    return nextMove();
-                }
-
-                std::swap(moveList.moves[currIndex], moveList.moves[maxIdx]);
-                std::swap(moveWeight[currIndex], moveWeight[maxIdx]);
-
-                BitEngine::Move best = moveList.moves[currIndex];
-                currIndex++;
-                return best;
+                return moveList.moves[realIdx];
             }
 
             case State::NONE:
                 return 0;
-
-                // [ 备用 ]
-                // case State::SORT:
-                //     toNextState();
-                //     // 排序
-                //     // 两种方案：选择排序、快速排序
-                //     //
-                //     选择排序的性质好，随用随取，不用一次性全排，易处理平行数组/映射数组，“偶尔？”会有运气差的情况
-                //     // 快速排序稳定但复杂
-                //     // 以下使用 快速排序+索引数组 解决平行数组排序问题
-                //     for (int i = 0; i < moveList.count; ++i) {
-                //         indices[i] = i;
-                //     }
-                //     std::sort(indices, indices + moveList.count, [&](int idxA, int idxB) {
-                //         return moveWeight[idxA] > moveWeight[idxB];  // 降序
-                //     });
-                // [[fallthrough]]
-
-                // case State::NORMAL: {
-                //     if (currIndex >= moveList.count) {
-                //         toNextState();
-                //         return nextMove();  //
-                //         抽取结束，不过为了接口规范，可以再递归一层，避免未来扩展，现在是会返回0
-                //     }
-                //     int realIdx = indices[currIndex++];
-                //     if (moveWeight[realIdx] == INVAILD_WEIGHT) {
-                //         return nextMove();
-                //     }
-                //     return moveList.moves[realIdx];
-                // }
 
         }  // end switch
         return 0;
@@ -316,41 +321,40 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     if (depth == 0)
         return evaluate(board);
 
-    // // 空步剪枝
-    // // 允许空步 && 深度足够 && 不是残局 && 分数不低
-    // if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
-    //     int emptyCell = BitEngine::cntBit(~board.allBlocked());
-    //     TTable::Score temScore = evaluate(board);
-    //     if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
-    //         // 空步模拟
-    //         int nullDepth = std::max(depth - NULLMOVE_R, 0);  // 绝不能小于0！！！
-    //         BitEngine::SwitchPlayer(board);
-    //         HashEngine::Key nexHash = currHash ^ HashEngine::playerBlackKey;
-    //         // 零窗口速测
-    //         TTable::Score nullScore
-    //             = -PVS(board, nexHash, nullDepth, -beta, -beta + 1, false);  //
-    //             空步子树内部禁止空步
-    //         // 恢复棋盘
-    //         BitEngine::SwitchPlayer(board);
-    //         // 超时检测
-    //         if (isTimeout_final)
-    //             return 0;
-    //         // 空步质量检测
-    //         // 默认假设 currScore>=nullScore 必然成立，
-    //         // 所以nullScore>=beta => currScore>=beta
-    //         // 即证明了beta剪枝，返回逻辑和alpha-beta一致
-    //         if (nullScore >= beta) {
-    //             // 分数没被压下去，合格
-    //             TTable::write({currHash,
-    //                            /*空步*/
-    //                            0,
-    //                            beta,
-    //                            static_cast<TTable::Depth>(depth),
-    //                            TTable::NodeFlag::LOWER_BOUND});
-    //             return beta;
-    //         }
-    //     }  // end if
-    // }  // end if
+    // 空步剪枝
+    // 允许空步 && 深度足够 && 不是残局 && 分数不低
+    if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
+        int emptyCell = BitEngine::cntBit(~board.allBlocked());
+        TTable::Score temScore = evaluate(board);
+        if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
+            // 空步模拟
+            int nullDepth = std::max(depth - NULLMOVE_R, 0);  // 绝不能小于0！！！
+            BitEngine::SwitchPlayer(board);
+            HashEngine::Key nexHash = currHash ^ HashEngine::playerBlackKey;
+            // 零窗口速测
+            TTable::Score nullScore = -PVS(board, nexHash, nullDepth, -beta, -beta + 1, false);
+            // 空步子树内部禁止空步
+            // 恢复棋盘
+            BitEngine::SwitchPlayer(board);
+            // 超时检测
+            if (isTimeout_final)
+                return 0;
+            // 空步质量检测
+            // 默认假设 currScore>=nullScore 必然成立，
+            // 所以nullScore>=beta => currScore>=beta
+            // 即证明了beta剪枝，返回逻辑和alpha-beta一致
+            if (nullScore >= beta) {
+                // 分数没被压下去，合格
+                TTable::write({currHash,
+                               /*空步*/
+                               0,
+                               beta,
+                               static_cast<TTable::Depth>(depth),
+                               TTable::NodeFlag::LOWER_BOUND});
+                return beta;
+            }
+        }  // end if
+    }  // end if
 
     // // 生成走法
     // BitEngine::MoveList moveList;
@@ -409,7 +413,6 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         // }
         // std::swap(moveList.moves[maxInx], moveList.moves[i]);
         // std::swap(moveWeight[maxInx], moveWeight[i]);
-
         // // 取Move，即为权重最高的
         // BitEngine::Move move = moveList.moves[i];
 

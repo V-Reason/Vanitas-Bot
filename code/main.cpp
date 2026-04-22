@@ -13,7 +13,7 @@ using namespace VanitasBot::SearchEngine;
 using namespace VanitasBot::Utilities;
 
 int main() {
-    // assert(false);  // release模式检测
+    assert(false);  // release模式检测
     freopen("test_cases/test_beg.txt", "r", stdin);
     Timer::resetStartTime();
     IOEngine::initIOEngine();
