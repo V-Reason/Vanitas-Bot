@@ -297,7 +297,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
             break;
 
         // [ 或许1s中的搜索可以不用衰减?有点浪费资源了 ]
-        // // 衰减HTable
+        // 衰减HTable
         // decayHTable();
 
         // 读取TTable置换表，更新globalBestMove
@@ -320,23 +320,60 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     statsLite.maxDepth = depth;
 
     printf("搜索报告:\n");
-    printf("最大深度: %llu\n", statsLite.maxDepth);
-    printf("遍历总节点: %llu\n", statsLite.nodes);
+    printf("最大深度:\t %llu\n", statsLite.maxDepth);
+    printf("遍历总节点:\t %llu\n", statsLite.nodes);
 #endif
+
 #ifdef MONITOR
-    printf("评估次数: %llu\n", stats.evals + stats.evalsLite + stats.evalsEnd);
-    printf("   全量eval %llu\n", stats.evals);
-    printf("   轻量lite %llu\n", stats.evalsLite);
-    printf("   残局end %llu\n", stats.evalsEnd);
-    printf("置换表成功: %llu\n", stats.ttHits);
-    printf("尝试空步: %llu\n", stats.nmpTrials);
-    printf("空步剪枝: %llu\n", stats.nmpCuts);
-    printf("总beta剪枝: %llu\n", stats.betaCutoffs);
-    printf("   置换表: %llu\n", stats.ttCutoffs);
-    printf("   杀手1: %llu\n", stats.killer1Cutoffs);
-    printf("   杀手2: %llu\n", stats.killer2Cutoffs);
-    printf("   历史表: %llu\n", stats.historyCutoffs);
-    printf("   历史表平均排名: %llu\n", stats.historyRankSum / stats.historyCutoffs);
+    // 1. 基础数据计算
+    uint64_t totalEvals = stats.evals + stats.evalsLite + stats.evalsEnd;
+    // 内部节点 = 总节点 - 叶子节点 (防减负保护)
+    uint64_t interiorNodes = (statsLite.nodes > totalEvals) ? (statsLite.nodes - totalEvals) : 0;
+
+    printf("评估次数:\t %llu\n", totalEvals);
+    printf("   全量eval\t %llu\n", stats.evals);
+    printf("   轻量lite\t %llu\n", stats.evalsLite);
+    printf("   残局end\t %llu\n", stats.evalsEnd);
+    printf("置换表成功:\t %llu\n", stats.ttHits);
+    printf("尝试空步:\t %llu\n", stats.nmpTrials);
+    printf("空步剪枝:\t %llu\n", stats.nmpCuts);
+    printf("总beta剪枝:\t %llu\n", stats.betaCutoffs);
+    printf("   置换表:\t %llu\n", stats.ttCutoffs);
+    printf("   杀手1:\t %llu\n", stats.killer1Cutoffs);
+    printf("   杀手2:\t %llu\n", stats.killer2Cutoffs);
+    printf("   历史表:\t %llu\n", stats.historyCutoffs);
+
+    // 安全计算历史表平均排名 (防止除以 0)
+    double avgHtRank
+        = (stats.historyCutoffs > 0) ? ((double)stats.historyRankSum / stats.historyCutoffs) : 0.0;
+    printf("   历史表平均排名: %.2f\n", avgHtRank);
+
+    printf("占比指标: \n");
+
+    // Beta剪枝率 (内部节点中有多少被剪断了)
+    double betaRate
+        = (interiorNodes > 0) ? ((double)stats.betaCutoffs * 100.0 / interiorNodes) : 0.0;
+    printf("   Beta剪枝率\t %.3f%%\n", betaRate);
+
+    // 排序贡献度 (谁促成了剪枝，分母为总剪枝数)
+    if (stats.betaCutoffs > 0) {
+        printf("   ├─ tt\t %.3f%%\n", ((double)stats.ttCutoffs * 100.0 / stats.betaCutoffs));
+        printf("   ├─ killer1\t %.3f%%\n",
+               ((double)stats.killer1Cutoffs * 100.0 / stats.betaCutoffs));
+        printf("   ├─ killer2\t %.3f%%\n",
+               ((double)stats.killer2Cutoffs * 100.0 / stats.betaCutoffs));
+        printf("   └─ ht\t %.3f%%\n", ((double)stats.historyCutoffs * 100.0 / stats.betaCutoffs));
+    } else {
+        printf("   ├─ tt\t 0.000%%\n");
+        printf("   ├─ killer1\t 0.000%%\n");
+        printf("   ├─ killer2\t 0.000%%\n");
+        printf("   └─ ht\t 0.000%%\n");
+    }
+
+    // NMP (空步剪枝) 成功率
+    double nmpRate
+        = (stats.nmpTrials > 0) ? ((double)stats.nmpCuts * 100.0 / stats.nmpTrials) : 0.0;
+    printf("   空步剪枝率\t %.3f%%\n", nmpRate);
 #endif
 
     return globalBestMove;
@@ -535,7 +572,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             // 监测探针
 #ifdef MONITOR
             ++stats.betaCutoffs;
-            if (moveCnt == 1)
+            if (move == ttMove && ttMove != 0)
                 ++stats.ttCutoffs;
             else if (move == KTable[depth][0])
                 ++stats.killer1Cutoffs;
@@ -548,13 +585,13 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 #endif
 
             // 更新杀手
-            if (move != KTable[depth][0]) {  // 简易循环数组
+            if (move != KTable[depth][0] && move != KTable[depth][1]) {  // 简易循环数组
                 KTable[depth][1] = KTable[depth][0];
                 KTable[depth][0] = move;
             }
             // 更新历史
             using namespace BitEngine;
-            HTable[getFrom(move)][getTo(move)][getArrow(move)] += depth * depth;
+            HTable[getFrom(move)][getTo(move)][getArrow(move)] += (depth * depth * 64);
             // 剪枝
             break;
         }

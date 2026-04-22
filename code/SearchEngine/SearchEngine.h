@@ -30,8 +30,8 @@ namespace VanitasBot::SearchEngine {
 constexpr int ALLOW_NULLMOVE_DEPTH = 3;  // 允许空步剪枝的深度阈值
 constexpr int NULLMOVE_R = 3;            // 空步子树深度衰减常量
 // 渴望窗口
-constexpr int ASPIRATION_DEPTH = 3;    // 开始层数
-constexpr int ASPIRATION_WINDOW = 50;  // 宽度
+constexpr int ASPIRATION_DEPTH = 3;     // 开始层数
+constexpr int ASPIRATION_WINDOW = 100;  // 宽度
 // 超时标志
 extern bool isTimeout_final;
 // 最大深度
@@ -54,7 +54,7 @@ constexpr int W_MOB_A = 6;  // 机动性
 constexpr int W_MOB_B = 2;
 constexpr int W_TER_A = 4;  // 领地
 constexpr int W_TER_B = 8;
-constexpr int LITE_FACTOR = (W_MOB_A + W_TER_B + W_TER_A + W_TER_B) / 2;  // Lite版本系数
+constexpr int LITE_FACTOR = (W_MOB_A + W_TER_B + W_TER_A + W_TER_B) / 1.5;  // Lite版本系数
 
 // 启发数据
 using MoveWeight = int;             // 走法权重
