@@ -1,4 +1,4 @@
-// #define MONITOR
+#define MONITOR
 // #define MONITOR_LITE
 
 #include "SearchEngine.h"
@@ -76,8 +76,8 @@ class StateMachine {
     State currState = State::TT_MOVE;
 
     BitEngine::MoveList moveList;
-    int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE]{};
-    int indices[BitEngine::MAX_AMAZON_MOVE_TYPE]{};  // 索引数组，解决排序问题
+    int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 不要再这里写{}防止频繁内存清零
+    int indices[BitEngine::MAX_AMAZON_MOVE_TYPE];     // 索引数组，解决排序问题
     int currIndex = 0;
 
     // TODO: 判断走法是否合法
