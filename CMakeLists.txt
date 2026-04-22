@@ -28,5 +28,5 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(Vanitas-Bot PRIVATE -g -Wall -Wextra)
 else()
     # Release 模式：O2极限优化，开启 CPU 原生指令集加速位运算，关闭调试信息
-    target_compile_options(Vanitas-Bot PRIVATE -O2 -march=native -Wall -DNDEBUG)
+    target_compile_options(Vanitas-Bot PRIVATE -O2 -march=native -mpopcnt -Wall -DNDEBUG)
 endif()

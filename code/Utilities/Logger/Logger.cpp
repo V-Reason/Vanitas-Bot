@@ -1,7 +1,6 @@
-// #define LOGGER_ON
+#include "Logger.h"
 
 #ifdef LOGGER_ON
-#include "Logger.h"
 
 #include <string>
 

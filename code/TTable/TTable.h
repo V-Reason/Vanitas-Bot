@@ -41,10 +41,10 @@ constexpr size_t TTABLE_MASK = MAX_TTABLE_SIZE - 1;  // 用于取模运算
 // 全局静态数组表
 extern TTableData TTable[MAX_TTABLE_SIZE];  // 约400万条，64MB
 
-// 初始化
-inline void init() {
-    std::memset(TTable, 0, sizeof(TTable));
-}
+// // 初始化放在.cpp里自动完成
+// inline void init() {
+//     std::memset(TTable, 0, sizeof(TTable));
+// }
 
 // 取下标
 inline size_t getIndex(HashEngine::Key hash) {

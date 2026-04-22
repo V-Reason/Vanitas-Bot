@@ -1,5 +1,8 @@
 // #define DEBUG
 
+#pragma GCC optimize("O3,unroll-loops")
+#pragma GCC target("avx2,bmi,bmi2,popcnt,lzcnt")
+
 #include "BitEngine/BitEngine.h"
 #include "HashEngine/HashEngine.h"
 #include "IOEngine/IOEngine.h"
@@ -21,7 +24,6 @@ int main() {
 #endif
     Timer::resetStartTime();
     IOEngine::initIOEngine();
-    TTable::init();
 
     BitEngine::BitBoard board;
     IOEngine::initBoard(board);
@@ -62,6 +64,5 @@ int main() {
     Logger::showBitboard(board);
     printf("PassedTime: %d", Timer::getPassedTime());
 #endif
-
     return 0;
 }
