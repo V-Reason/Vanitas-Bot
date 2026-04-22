@@ -1,3 +1,6 @@
+// #define LOGGER_ON
+
+#ifdef LOGGER_ON
 #include "Logger.h"
 
 #include <string>
@@ -53,7 +56,7 @@ void Logger::showBitmap(const BitEngine::Bitmap& bitmap, const char* title) {
 }
 
 void Logger::showBitboard(const BitEngine::BitBoard& board, const char* title) {
-    std::cout << "=== title ===" << std::endl;
+    std::cout << "=== " << title << " ===" << std::endl;
     std::cout << "  0 1 2 3 4 5 6 7  (x)" << std::endl;
     for (int y = 0; y < BitEngine::AMAZON_BOARD_LENGTH; ++y) {
         std::cout << y << " ";  // 打印行号(y)
@@ -85,3 +88,4 @@ void Logger::showBitboard(const BitEngine::BitBoard& board, const char* title) {
     std::cout << "=====================" << std::endl;
 }
 }  // namespace VanitasBot::Utilities
+#endif

@@ -1,5 +1,7 @@
 #pragma once
+// #define LOGGER_ON
 
+#ifdef LOGGER_ON
 #ifndef LOGGER_H
 #define LOGGER_H
 
@@ -18,4 +20,5 @@ class Logger {
 };
 }  // namespace VanitasBot::Utilities
 
+#endif
 #endif

@@ -1,5 +1,5 @@
-#define MONITOR
-#define MONITOR_LITE
+// #define MONITOR
+// #define MONITOR_LITE
 
 #include "SearchEngine.h"
 
