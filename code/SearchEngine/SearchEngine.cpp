@@ -1,4 +1,4 @@
-#define MONITOR
+// #define MONITOR
 // #define MONITOR_LITE
 
 #include "SearchEngine.h"
