@@ -40,6 +40,8 @@ struct SearchStats {
 
     uint64_t nBestCuts;  // 实际因超出走法限制而截断的次数
 
+    uint64_t fpTrials;  // 试探fp次数
+    uint64_t fpCuts;    // fp剪枝次数
 } stats;
 #endif
 #ifdef MONITOR_LITE
@@ -336,8 +338,9 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 #ifdef MONITOR
     // 1. 基础数据计算
     uint64_t totalEvals = stats.evals + stats.evalsLite + stats.evalsEnd;
-    // 内部节点 = 总节点 - 叶子节点 (防减负保护)
-    uint64_t interiorNodes = (statsLite.nodes > totalEvals) ? (statsLite.nodes - totalEvals) : 0;
+
+    // 【修正1】彻底废弃 interiorNodes，统一使用 statsLite.nodes 作为总基数
+    uint64_t baseNodes = (statsLite.nodes > 0) ? statsLite.nodes : 1;  // 防除零保护
 
     printf("评估次数:\t %llu\n", totalEvals);
     printf("   全量eval\t %llu\n", stats.evals);
@@ -359,9 +362,8 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 
     printf("占比指标: \n");
 
-    // Beta剪枝率 (内部节点中有多少被剪断了)
-    double betaRate
-        = (interiorNodes > 0) ? ((double)stats.betaCutoffs * 100.0 / interiorNodes) : 0.0;
+    // 【修正2】Beta剪枝率：在所有访问过的节点中，有多少比例触发了 Beta 剪枝
+    double betaRate = ((double)stats.betaCutoffs * 100.0 / baseNodes);
     printf("   Beta剪枝率\t %.3f%%\n", betaRate);
 
     // 排序贡献度 (谁促成了剪枝，分母为总剪枝数)
@@ -406,11 +408,24 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     // N-Best报告
     // ========== N-Best 指标 ==========
     printf("N-Best 探针报告:\n");
-    // 利用已有的 interiorNodes 计算占据内部节点的比例
-    double nBestCutRate
-        = (interiorNodes > 0) ? (double)stats.nBestCuts * 100.0 / interiorNodes : 0.0;
+    // 【修正3】利用基础节点基数计算占比
+    double nBestCutRate = (double)stats.nBestCuts * 100.0 / baseNodes;
     printf("   截断次数:\t\t %llu \n", stats.nBestCuts);
-    printf("   占内部节点比例:\t %.3f%%\n", nBestCutRate);
+    printf("   占总节点比例:\t %.3f%%\n", nBestCutRate);
+
+    // FP报告
+    // ========== FP 指标 ==========
+    printf("FP 探针报告:\n");
+    if (stats.fpTrials > 0) {
+        double fpSuccessRate = (double)stats.fpCuts * 100.0 / stats.fpTrials;
+        // 【修正4】利用基础节点基数计算占比
+        double fpCutRate = (double)stats.fpCuts * 100.0 / baseNodes;
+        printf("   触发节点数:\t\t %llu\n", stats.fpTrials);
+        printf("   截断次数:\t\t %llu (%.2f%%)\n", stats.fpCuts, fpSuccessRate);
+        printf("   占总节点比例:\t %.3f%%\n", fpCutRate);
+    } else {
+        printf("   未触发 FP 剪枝\n");
+    }
 #endif
 
     return globalBestMove;
@@ -509,6 +524,28 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         }  // end if
     }  // end if
 
+    // Futility Pruning边缘剪枝
+    // 禁止残局fp，禁止浅层fp，禁止PVNode主要变例fp
+    // （使用 isPVNode = (beta - alpha == 1) 作为是否为主要变例的判断）
+    bool isPVNode = (beta > alpha + 1);  // 下方共用
+    if (!isEndGame && depth <= ALLOW_FP_DEPTH && !isPVNode) {
+        // 非杀棋
+        if (alpha > -TTable::SCORE_MATE + 1000 && beta < TTable::SCORE_MATE - 1000) {
+#ifdef MONITOR
+            ++stats.fpTrials;
+#endif
+            TTable::Score currSocre = evaluateLite(board);  // 当前分数速估
+            TTable::Score margin = depth * FP_MARGIN_BASE;  // 理论最大反扑分数
+            if (currSocre + margin <= alpha) {
+                // 后续不可能超过alpha，剪枝
+#ifdef MONITOR
+                ++stats.fpCuts;
+#endif
+                return currSocre;
+            }
+        }
+    }
+
     // // 生成走法
     // BitEngine::MoveList moveList;
     // BitEngine::generateAllMoves(board, moveList);
@@ -571,8 +608,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
         // N-Best截断
         // 禁止残局N-Best，禁止浅层N-Best，禁止PVNode主要变例N-Best
-        // （使用 isPVNode = (beta - alpha == 1) 作为是否为主要变例的判断）
-        if (!isEndGame && depth <= ALLOW_N_BEST && beta <= alpha + 1) {
+        if (!isEndGame && depth <= ALLOW_N_BEST && !isPVNode) {
             int maxMoveAllowed = (depth == N_BEST_DEPTH_1)   ? N_BEST_RANK_1
                                  : (depth == N_BEST_DEPTH_2) ? N_BEST_RANK_2
                                                              : N_BEST_RANK_3;

@@ -27,6 +27,9 @@
 // }
 
 namespace VanitasBot::SearchEngine {
+// Futility Pruning边缘剪枝/静态空步剪枝
+constexpr int ALLOW_FP_DEPTH = 3;    // 允许fp的深度阈值
+constexpr int FP_MARGIN_BASE = 150;  // 每一步棋的富余基数，即每步最多能拿多少分
 // N-Best截断
 constexpr int ALLOW_N_BEST = 3;    // 允许N-Best的深度阈值
 constexpr int N_BEST_DEPTH_1 = 1;  // N-Best的深度确值
