@@ -10,7 +10,8 @@
 
 namespace VanitasBot::TTable {
 using Score = int16_t;  // NegaMax必须可用正负数
-using Depth = uint8_t;
+using Depth = int8_t;   // 允许负数
+using Ply = uint8_t;    // ply
 
 // 分数上下限
 // int16_t的取值范围是-32768~32767
