@@ -27,6 +27,12 @@
 // }
 
 namespace VanitasBot::SearchEngine {
+// LMR晚期移动缩减
+constexpr int ALLOW_LMR_DEPTH = 3;  // 允许LMR的深度阈值
+constexpr int ALLOW_LMR_RANK = 6;   // 允许LMR的走法排名
+constexpr int LMR_DEPTH_DECAY = 1;  // LMR的深度衰减力度，基础值
+constexpr int LMR_RANK_1 = 10;      // 动态调整，阈值1
+constexpr int LMR_RANK_2 = 30;      // 动态调整，阈值2
 // 空步剪枝
 constexpr int ALLOW_NULLMOVE_DEPTH = 3;  // 允许空步剪枝的深度阈值
 constexpr int NULLMOVE_R = 3;            // 空步子树深度衰减常量
@@ -77,6 +83,7 @@ BitEngine::Move search(BitEngine::BitBoard& board);
 TTable::Score PVS(BitEngine::BitBoard& board,
                   HashEngine::Key currHash,
                   TTable::Depth depth,
+                  TTable::Ply ply,
                   TTable::Score alpha,
                   TTable::Score beta,
                   bool allowNullMove);

@@ -32,6 +32,12 @@ struct SearchStats {
 
     uint64_t historyRankSum;  // 历史走法剪枝时，它排在第几个？（用于算平均排名）
 
+    uint64_t lmrTrials;  // 尝试 LMR 的次数（满足条件并进入缩减搜索）
+    uint64_t lmrCuts;    // LMR 成功剪枝次数（score <= alpha，跳过全量搜索）
+    uint64_t lmrMisses;  // LMR 误判次数（score > alpha，仍需全量搜索）
+    // 可选：记录 lmr 在各深度区间的触发分布
+    // uint64_t lmrByDepth[16];
+
 } stats;
 #endif
 #ifdef MONITOR_LITE
@@ -66,6 +72,7 @@ enum class State : int {
 };
 
 // 状态机（实现延迟计算）
+// 注意：单个状态机约 45KB
 class StateMachine {
    private:
     const BitEngine::BitBoard& board;
@@ -77,7 +84,7 @@ class StateMachine {
 
     BitEngine::MoveList moveList;
     int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 不要再这里写{}防止频繁内存清零
-    int indices[BitEngine::MAX_AMAZON_MOVE_TYPE];     // 索引数组，解决排序问题
+    // int indices[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 索引数组，解决排序问题，22kb，容易爆栈
     int currIndex = 0;
 
     // TODO: 判断走法是否合法
@@ -276,7 +283,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
         TTable::Score score;
         while (true) {  // 最多可能搜索两次
             // 搜索
-            score = PVS(board, initHash, depth, alpha, beta, true);
+            score = PVS(board, initHash, depth, 0, alpha, beta, true);
             // 下跌
             if (score <= alpha && alpha > -TTable::SCORE_INFINITY) {  // 防止死循环
                 alpha = -TTable::SCORE_INFINITY;                      // 开放下界
@@ -374,6 +381,25 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     double nmpRate
         = (stats.nmpTrials > 0) ? ((double)stats.nmpCuts * 100.0 / stats.nmpTrials) : 0.0;
     printf("   空步剪枝率\t %.3f%%\n", nmpRate);
+
+    // LMR报告
+    // ========== LMR 指标 ==========
+    printf("LMR 探针报告:\n");
+    if (stats.lmrTrials > 0) {
+        double lmrSuccessRate = (double)stats.lmrCuts * 100.0 / stats.lmrTrials;
+        double lmrMissRate = (double)stats.lmrMisses * 100.0 / stats.lmrTrials;
+
+        printf("   尝试次数:\t\t %llu\n", stats.lmrTrials);
+        printf("   成功剪枝:\t\t %llu (%.2f%%)\n", stats.lmrCuts, lmrSuccessRate);
+        printf("   误判:\t\t %llu (%.2f%%)\n", stats.lmrMisses, lmrMissRate);
+
+        if (stats.betaCutoffs > 0) {
+            double lmrContribution = (double)stats.lmrCuts * 100.0 / stats.betaCutoffs;
+            printf("   LMR 贡献剪枝占比:\t %.3f%%\n", lmrContribution);
+        }
+    } else {
+        printf("   未触发 LMR\n");
+    }
 #endif
 
     return globalBestMove;
@@ -382,6 +408,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 TTable::Score PVS(BitEngine::BitBoard& board,
                   HashEngine::Key currHash,
                   TTable::Depth depth,
+                  TTable::Ply ply,
                   TTable::Score alpha,
                   TTable::Score beta,
                   bool allowNullMove) {
@@ -422,16 +449,17 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         ttMove = ttData.bestMove;
     }
 
-    // 到达深度限制
-    if (depth == 0)
+    // 到达深度限制，自动负数保护
+    if (depth <= 0)
         return evaluate(board);
 
     // 空步剪枝
     // 允许空步 && 深度足够 && 不是残局 && 分数不低
+    int emptyCell = BitEngine::cntBit(~board.allBlocked());
+    bool isEndGame = (emptyCell <= ENDGAME_PIECES);  // 和lmr共用
     if (allowNullMove && depth > ALLOW_NULLMOVE_DEPTH) {
-        int emptyCell = BitEngine::cntBit(~board.allBlocked());
         TTable::Score temScore = evaluateLite(board);
-        if (emptyCell > ENDGAME_PIECES && temScore >= beta) {
+        if (!isEndGame && temScore >= beta) {
             // 监测探针
 #ifdef MONITOR
             ++stats.nmpTrials;
@@ -441,7 +469,8 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             BitEngine::SwitchPlayer(board);
             HashEngine::Key nexHash = currHash ^ HashEngine::playerBlackKey;
             // 零窗口速测
-            TTable::Score nullScore = -PVS(board, nexHash, nullDepth, -beta, -beta + 1, false);
+            TTable::Score nullScore
+                = -PVS(board, nexHash, nullDepth, ply + 1, -beta, -beta + 1, false);
             // 空步子树内部禁止空步
             // 恢复棋盘
             BitEngine::SwitchPlayer(board);
@@ -506,7 +535,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // if (!(alpha >= beta))  // beta剪枝失败，进入循环，从 i=1 开始
 
     // 搜索
-    StateMachine stateMachine(board, ttMove, KTable[depth][0], KTable[depth][1]);
+    StateMachine stateMachine(board, ttMove, KTable[ply][0], KTable[ply][1]);
 
     TTable::Score bestScore = -TTable::SCORE_INFINITY;
     BitEngine::Move bestMove = 0;
@@ -543,13 +572,44 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
         // 搜索
         TTable::Score score;
-        if (moveCnt == 1)  // 首节点全窗口搜索
-            score = -PVS(board, nexHash, depth - 1, -beta, -alpha, allowNullMove);
-        else {  // 零窗口搜索
-            score = -PVS(board, nexHash, depth - 1, -alpha - 1, -alpha, allowNullMove);
+        bool fullSearch = true;  // 默认进入全量搜索
+        if (moveCnt == 1)        // 首节点全窗口搜索
+            score = -PVS(board, nexHash, depth - 1, ply + 1, -beta, -alpha, allowNullMove);
+        else if (!isEndGame && depth >= ALLOW_LMR_DEPTH && moveCnt >= ALLOW_LMR_RANK) {
+            // lmr晚期移动缩减+零窗口 搜索
+            int lmrDepth = depth - 1 - LMR_DEPTH_DECAY;
+            // 动态调整
+            if (moveCnt >= LMR_RANK_1)
+                --lmrDepth;
+            if (moveCnt >= LMR_RANK_2)
+                --lmrDepth;
+            // 监测探针
+#ifdef MONITOR
+            ++stats.lmrTrials;
+#endif
+            // lmr禁止空步，减少误判率
+            score = -PVS(board, nexHash, lmrDepth, ply + 1, -alpha - 1, -alpha, false);
+            if (score <= alpha) {  // 预期判断
+                fullSearch = false;
+                // 不符合预期，跳过全量搜索
+                // 监测探针
+#ifdef MONITOR
+                ++stats.lmrCuts;
+#endif
+            }
+#ifdef MONITOR
+            else {
+                ++stats.lmrMisses;
+            }
+#endif
+        }
+
+        // 零窗口 -> 全窗口
+        if (fullSearch) {
+            score = -PVS(board, nexHash, depth - 1, ply + 1, -alpha - 1, -alpha, allowNullMove);
             if (alpha < score && score < beta)  // 可以省一步更新alpha，使用-score
                 // 零窗口尝试失败，重新全窗口
-                score = -PVS(board, nexHash, depth - 1, -beta, -score, allowNullMove);
+                score = -PVS(board, nexHash, depth - 1, ply + 1, -beta, -score, allowNullMove);
         }
 
         // 悔棋
@@ -574,9 +634,9 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             ++stats.betaCutoffs;
             if (move == ttMove && ttMove != 0)
                 ++stats.ttCutoffs;
-            else if (move == KTable[depth][0])
+            else if (move == KTable[ply][0])
                 ++stats.killer1Cutoffs;
-            else if (move == KTable[depth][1])
+            else if (move == KTable[ply][1])
                 ++stats.killer2Cutoffs;
             else {
                 ++stats.historyCutoffs;
@@ -585,9 +645,9 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 #endif
 
             // 更新杀手
-            if (move != KTable[depth][0] && move != KTable[depth][1]) {  // 简易循环数组
-                KTable[depth][1] = KTable[depth][0];
-                KTable[depth][0] = move;
+            if (move != KTable[ply][0] && move != KTable[ply][1]) {  // 简易循环数组
+                KTable[ply][1] = KTable[ply][0];
+                KTable[ply][0] = move;
             }
             // 更新历史
             using namespace BitEngine;
