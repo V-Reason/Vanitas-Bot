@@ -27,7 +27,10 @@
 // }
 
 namespace VanitasBot::SearchEngine {
-// Futility Pruning边缘剪枝/静态空步剪枝
+// IID 内部迭代加深
+constexpr int ALLOW_IID_DEPTH = 4;  // 允许IID的深度阈值
+constexpr int IID_DEPTH_DECAY = 2;  // IID的深度裁切力度
+// Futility Pruning 边缘剪枝/静态空步剪枝
 constexpr int ALLOW_FP_DEPTH = 3;    // 允许fp的深度阈值
 constexpr int FP_MARGIN_BASE = 150;  // 每一步棋的富余基数，即每步最多能拿多少分
 // N-Best截断
@@ -52,7 +55,7 @@ constexpr int ASPIRATION_WINDOW = 100;  // 宽度
 // 超时标志
 extern bool isTimeout_final;
 // 最大深度
-constexpr int MAX_DEPTH = 150;
+constexpr int MAX_DEPTH = 80;  // 再加会导致残局栈溢出！！！
 // 超时检查间隔
 constexpr int CHECK_GAP_MASK = (1 << 13) - 1;  // 取模掩码，毎8192回合检查一次超时，1024为最稳数据
 // 局面情况分类

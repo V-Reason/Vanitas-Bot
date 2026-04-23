@@ -42,6 +42,12 @@ struct SearchStats {
 
     uint64_t fpTrials;  // 试探fp次数
     uint64_t fpCuts;    // fp剪枝次数
+
+    uint64_t mdpTrials;  // 尝试 MDP 检查的次数
+    uint64_t mdpCuts;    // 因 MDP 导致窗口崩溃直接返回的次数
+
+    uint64_t iidTrials;  // 尝试 IID 的次数
+    uint64_t iidHits;    // IID 成功找到 ttMove 的次数
 } stats;
 #endif
 #ifdef MONITOR_LITE
@@ -426,6 +432,22 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     } else {
         printf("   未触发 FP 剪枝\n");
     }
+
+    // MDP报告
+    printf("MDP 探针报告:\n");
+    if (stats.mdpTrials > 0) {
+        printf("   触发检查数:\t %llu\n", stats.mdpTrials);
+        printf("   数学截断数:\t %llu\n", stats.mdpCuts);
+    }
+
+    // IID报告
+    printf("IID 探针报告:\n");
+    if (stats.iidTrials > 0) {
+        printf("   IID 尝试数:\t %llu\n", stats.iidTrials);
+        printf("   引导成功数:\t %llu (%.2f%%)\n",
+               stats.iidHits,
+               (double)stats.iidHits * 100.0 / stats.iidTrials);
+    }
 #endif
 
     return globalBestMove;
@@ -449,6 +471,27 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         return 0;
     if (isTimeout_final)
         return 0;
+
+    // 到达深度限制，自动负数保护
+    if (depth <= 0)
+        return evaluate(board);
+
+// Mate Distance Pruning 杀棋距离剪枝
+// 是否不可能找到比直接将死对手更好的分数了，残局用
+#ifdef MONITOR
+    ++stats.mdpTrials;
+#endif
+    TTable::Score mateScore = TTable::SCORE_MATE - ply;
+    if (alpha < -mateScore)
+        alpha = -mateScore;
+    if (beta > mateScore - 1)
+        beta = mateScore - 1;
+    if (alpha >= beta) {
+#ifdef MONITOR
+        ++stats.mdpCuts;
+#endif
+        return alpha;
+    }
 
     // TTable置换表剪枝
     TTable::TTableData ttData;
@@ -475,9 +518,25 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         ttMove = ttData.bestMove;
     }
 
-    // 到达深度限制，自动负数保护
-    if (depth <= 0)
-        return evaluate(board);
+    // IID 内部迭代加深
+    // 当TTable未命中的时候，进行快速搜索，积累TTable
+    // （使用 isPVNode = (beta - alpha == 1) 作为是否为主要变例的判断）
+    bool isPVNode = (beta > alpha + 1);  // 下方共用
+    if (isPVNode && ttMove == 0 && depth >= ALLOW_IID_DEPTH) {
+#ifdef MONITOR
+        ++stats.iidTrials;
+#endif
+        // 快速搜索，仅用于积累TTable的生成
+        PVS(board, currHash, depth - 2, ply, alpha, beta, false);
+        TTable::TTableData iidData;
+        if (TTable::read(currHash, iidData)) {
+            ttMove = iidData.bestMove;
+#ifdef MONITOR
+            if (ttMove != 0)
+                ++stats.iidHits;
+#endif
+        }
+    }
 
     // 空步剪枝
     // 允许空步 && 深度足够 && 不是残局 && 分数不低
@@ -526,8 +585,6 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
     // Futility Pruning边缘剪枝
     // 禁止残局fp，禁止浅层fp，禁止PVNode主要变例fp
-    // （使用 isPVNode = (beta - alpha == 1) 作为是否为主要变例的判断）
-    bool isPVNode = (beta > alpha + 1);  // 下方共用
     if (!isEndGame && depth <= ALLOW_FP_DEPTH && !isPVNode) {
         // 非杀棋
         if (alpha > -TTable::SCORE_MATE + 1000 && beta < TTable::SCORE_MATE - 1000) {
