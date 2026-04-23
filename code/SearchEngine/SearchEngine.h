@@ -27,6 +27,13 @@
 // }
 
 namespace VanitasBot::SearchEngine {
+// N-Best截断
+constexpr int ALLOW_N_BEST = 3;    // 允许N-Best的深度阈值
+constexpr int N_BEST_DEPTH_1 = 1;  // N-Best的深度确值
+constexpr int N_BEST_DEPTH_2 = 2;  // N-Best的深度确值
+constexpr int N_BEST_RANK_1 = 15;  // 动态调整，阈值1
+constexpr int N_BEST_RANK_2 = 30;  // 动态调整，阈值2
+constexpr int N_BEST_RANK_3 = 60;  // 动态调整，阈值3
 // LMR晚期移动缩减
 constexpr int ALLOW_LMR_DEPTH = 3;  // 允许LMR的深度阈值
 constexpr int ALLOW_LMR_RANK = 6;   // 允许LMR的走法排名
@@ -42,7 +49,7 @@ constexpr int ASPIRATION_WINDOW = 100;  // 宽度
 // 超时标志
 extern bool isTimeout_final;
 // 最大深度
-constexpr int MAX_DEPTH = 1000;
+constexpr int MAX_DEPTH = 150;
 // 超时检查间隔
 constexpr int CHECK_GAP_MASK = (1 << 13) - 1;  // 取模掩码，毎8192回合检查一次超时，1024为最稳数据
 // 局面情况分类

@@ -38,6 +38,8 @@ struct SearchStats {
     // 可选：记录 lmr 在各深度区间的触发分布
     // uint64_t lmrByDepth[16];
 
+    uint64_t nBestCuts;  // 实际因超出走法限制而截断的次数
+
 } stats;
 #endif
 #ifdef MONITOR_LITE
@@ -400,6 +402,15 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     } else {
         printf("   未触发 LMR\n");
     }
+
+    // N-Best报告
+    // ========== N-Best 指标 ==========
+    printf("N-Best 探针报告:\n");
+    // 利用已有的 interiorNodes 计算占据内部节点的比例
+    double nBestCutRate
+        = (interiorNodes > 0) ? (double)stats.nBestCuts * 100.0 / interiorNodes : 0.0;
+    printf("   截断次数:\t\t %llu \n", stats.nBestCuts);
+    printf("   占内部节点比例:\t %.3f%%\n", nBestCutRate);
 #endif
 
     return globalBestMove;
@@ -557,6 +568,22 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         // std::swap(moveWeight[maxInx], moveWeight[i]);
         // // 取Move，即为权重最高的
         // BitEngine::Move move = moveList.moves[i];
+
+        // N-Best截断
+        // 禁止残局N-Best，禁止浅层N-Best，禁止PVNode主要变例N-Best
+        // （使用 isPVNode = (beta - alpha == 1) 作为是否为主要变例的判断）
+        if (!isEndGame && depth <= ALLOW_N_BEST && beta <= alpha + 1) {
+            int maxMoveAllowed = (depth == N_BEST_DEPTH_1)   ? N_BEST_RANK_1
+                                 : (depth == N_BEST_DEPTH_2) ? N_BEST_RANK_2
+                                                             : N_BEST_RANK_3;
+            // 超出预期，直接剪枝
+            if (moveCnt > maxMoveAllowed) {
+#ifdef MONITOR
+                ++stats.nBestCuts;
+#endif
+                break;
+            }
+        }
 
         // 先计算哈希
         // board.player在数值上通过约定保证正确
