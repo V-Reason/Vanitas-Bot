@@ -810,23 +810,20 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
     ++stats.evalsLite;
 #endif
 
-    // 内存监控 - 使用宏定义的频率
-    static int evalLiteCount = 0;
-    if (++evalLiteCount % MEM_MONITOR_EVALUATE_LITE_FREQ == 0) {
+#ifdef MONITOR
+    if (stats.evalsLite % MEM_MONITOR_EVALUATE_LITE_FREQ == 0
+        && stats.evalsLite != 0) {  // 每固定次数调用监控一次
 #ifdef _WIN32
         PROCESS_MEMORY_COUNTERS pmc;
         GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        printf("[Memory Monitor - evaluateLite] Call Count: %d, RSS: %lu KB\n",
-               evalLiteCount,
-               pmc.WorkingSetSize / 1024);
+        printf("[Memory Monitor - evaluateLite] RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
 #else
         struct rusage usage;
         getrusage(RUSAGE_SELF, &usage);
-        printf("[Memory Monitor - evaluateLite] Call Count: %d, RSS: %ld KB\n",
-               evalLiteCount,
-               usage.ru_maxrss);
+        printf("[Memory Monitor - evaluateLite] RSS: %ld KB\n", usage.ru_maxrss);
 #endif
     }
+#endif
 
     using namespace BitEngine;
     // 分辨敌我
@@ -874,23 +871,20 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     ++stats.evals;
 #endif
 
-    // 内存监控 - 使用宏定义的频率
-    static int evalCount = 0;
-    if (++evalCount % MEM_MONITOR_EVALUATE_FREQ == 0) {
+#ifdef MONITOR
+    if (stats.evals % MEM_MONITOR_EVALUATE_FREQ == 0
+        && stats.evals != 0) {  // 每固定次数调用监控一次
 #ifdef _WIN32
         PROCESS_MEMORY_COUNTERS pmc;
         GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        printf("[Memory Monitor - evaluate] Call Count: %d, RSS: %lu KB\n",
-               evalCount,
-               pmc.WorkingSetSize / 1024);
+        printf("[Memory Monitor - evaluate] RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
 #else
         struct rusage usage;
         getrusage(RUSAGE_SELF, &usage);
-        printf("[Memory Monitor - evaluate] Call Count: %d, RSS: %ld KB\n",
-               evalCount,
-               usage.ru_maxrss);
+        printf("[Memory Monitor - evaluate] RSS: %ld KB\n", usage.ru_maxrss);
 #endif
     }
+#endif
 
     using namespace BitEngine;
     // 分辨敌我
@@ -974,23 +968,20 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
     ++stats.evalsEnd;
 #endif
 
-    // 内存监控
-    static int evalEndCount = 0;
-    if (++evalEndCount % MEM_MONITOR_EVALUATE_ENDGAME_FREQ == 0) {
+#ifdef MONITOR
+    if (stats.evalsEnd % MEM_MONITOR_EVALUATE_ENDGAME_FREQ == 0
+        && stats.evalsEnd != 0) {  // 每固定次数调用监控一次
 #ifdef _WIN32
         PROCESS_MEMORY_COUNTERS pmc;
         GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        printf("[Memory Monitor - evaluateEndGame] Call Count: %d, RSS: %lu KB\n",
-               evalEndCount,
-               pmc.WorkingSetSize / 1024);
+        printf("[Memory Monitor - evaluateEndGame] RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
 #else
         struct rusage usage;
         getrusage(RUSAGE_SELF, &usage);
-        printf("[Memory Monitor - evaluateEndGame] Call Count: %d, RSS: %ld KB\n",
-               evalEndCount,
-               usage.ru_maxrss);
+        printf("[Memory Monitor - evaluateEndGame] RSS: %ld KB\n", usage.ru_maxrss);
 #endif
     }
+#endif
 
     using namespace BitEngine;
     // 缓存
