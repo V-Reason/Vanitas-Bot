@@ -58,7 +58,7 @@ struct SearchStatsLite {
 #endif
 
 namespace VanitasBot::SearchEngine {
-BitEngine::Move KTable[MAX_DEPTH][KILLER_NUM]{};
+BitEngine::Move KTable[MAX_PLY][KILLER_NUM]{};
 MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
                  [BitEngine::AMAZON_BOARD_SQUARE]{};
 bool isTimeout_final = false;
