@@ -58,14 +58,21 @@ struct SearchStatsLite {
 #endif
 
 namespace VanitasBot::SearchEngine {
+// 杀手表
 BitEngine::Move KTable[MAX_PLY][KILLER_NUM]{};
+// 历史表
 MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
                  [BitEngine::AMAZON_BOARD_SQUARE]{};
+// 超时标志
 bool isTimeout_final = false;
 
 // 临时计时器
 // auto startTime = std::chrono::steady_clock::now();
 // bool isTimeout_final = false;
+
+// 静态内存池（SoA式）
+BitEngine::MoveList moveListPool[MAX_PLY]{};
+MoveWeight moveWeightPool[MAX_PLY][BitEngine::MAX_AMAZON_MOVE_TYPE]{};
 
 #pragma region 状态机
 // 状态
@@ -92,10 +99,16 @@ class StateMachine {
 
     State currState = State::TT_MOVE;
 
-    BitEngine::MoveList moveList;
-    int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 不要再这里写{}防止频繁内存清零
-    // int indices[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 索引数组，解决排序问题，22kb，容易爆栈
+    bool isKiller1OK = false;
+    bool isKiller2OK = false;
+
     int currIndex = 0;
+    BitEngine::MoveList& moveList;
+    MoveWeight* moveWeight;
+    // BitEngine::MoveList moveList;
+    // TTable::Weight moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];  //
+    // 不要再这里写{}防止频繁内存清零 int indices[BitEngine::MAX_AMAZON_MOVE_TYPE];  //
+    // 索引数组，解决排序问题，22kb，容易爆栈
 
     // TODO: 判断走法是否合法
     bool isValid(BitEngine::Move move) {
@@ -106,21 +119,32 @@ class StateMachine {
         return false;
     }
 
-    bool isKiller1OK = false;
-    bool isKiller2OK = false;
-
     inline void toNextState() {
         // if(currState != State::NONE)更安全一点，不过State::NONE里不写toNextState()就好了
         currState = static_cast<State>(static_cast<int>(currState) + 1);
     }
 
    public:
+    // StateMachine(const BitEngine::BitBoard& board,
+    //              BitEngine::Move ttMove,
+    //              BitEngine::Move killer1,
+    //              BitEngine::Move killer2)
+    //     : board(board), ttMove(ttMove), killer1(killer1), killer2(killer2) {}
     // 必须是轻量构造！！！
     StateMachine(const BitEngine::BitBoard& board,
                  BitEngine::Move ttMove,
                  BitEngine::Move killer1,
-                 BitEngine::Move killer2)
-        : board(board), ttMove(ttMove), killer1(killer1), killer2(killer2) {}
+                 BitEngine::Move killer2,
+                 TTable::Ply ply)
+        : board(board),
+          ttMove(ttMove),
+          killer1(killer1),
+          killer2(killer2),
+          moveList(moveListPool[ply]),
+          moveWeight(moveWeightPool[ply]) {
+        // 注意：moveList会在generateAllMoves内部自动清空，这里不再写一遍
+        //  moveList.clear();
+    }
 
     bool hasNext() {
         return currState != State::NONE;
@@ -138,7 +162,7 @@ class StateMachine {
 
             case State::GEN_ALL:
                 toNextState();
-                BitEngine::generateAllMoves(board, moveList);
+                BitEngine::generateAllMoves(board, moveList);  // 内部自动清空moveList
                 [[fallthrough]];
 
             case State::KILLER_CHK:
@@ -521,6 +545,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // IID 内部迭代加深
     // 当TTable未命中的时候，进行快速搜索，积累TTable
     // （使用 isPVNode = (beta - alpha == 1) 作为是否为主要变例的判断）
+    // 注意：尽量避免放在状态机初始化之后，避免内存池污染
     bool isPVNode = (beta > alpha + 1);  // 下方共用
     if (isPVNode && ttMove == 0 && depth >= ALLOW_IID_DEPTH) {
 #ifdef MONITOR
@@ -617,7 +642,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // 1. 置换表
     // 2. 杀手表
     // 3. 历史表
-    // int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];
+    // TTable::Weight moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];
     // for (int i = 0; i < moveList.count; ++i) {
     //     BitEngine::Move m = moveList.moves[i];
     //     if (m == ttMove)
@@ -640,7 +665,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
     // if (!(alpha >= beta))  // beta剪枝失败，进入循环，从 i=1 开始
 
     // 搜索
-    StateMachine stateMachine(board, ttMove, KTable[ply][0], KTable[ply][1]);
+    StateMachine stateMachine(board, ttMove, KTable[ply][0], KTable[ply][1], ply);
 
     TTable::Score bestScore = -TTable::SCORE_INFINITY;
     BitEngine::Move bestMove = 0;
