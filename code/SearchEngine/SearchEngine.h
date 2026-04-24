@@ -77,13 +77,6 @@ constexpr int W_MOB_B = 2;
 constexpr int W_TER_A = 4;  // 领地
 constexpr int W_TER_B = 8;
 constexpr int LITE_FACTOR = (W_MOB_A + W_TER_B + W_TER_A + W_TER_B) / 1.5;  // Lite版本系数
-#ifdef MONITOR
-// 内存监控频率
-constexpr int MEM_MONITOR_EVALUATE_LITE_FREQ = 10000;  // evaluateLite 每多少次调用打印一次内存使用
-constexpr int MEM_MONITOR_EVALUATE_FREQ = 5000;        // evaluate 每多少次调用打印一次内存使用
-constexpr int MEM_MONITOR_EVALUATE_ENDGAME_FREQ
-    = 2000;  // evaluateEndGame 每多少次调用打印一次内存使用
-#endif
 // 启发数据
 using MoveWeight = int;             // 走法权重
 constexpr int INVAILD_WEIGHT = -1;  // 无效权重

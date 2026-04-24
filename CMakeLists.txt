@@ -30,3 +30,8 @@ else()
     # Release 模式：O2极限优化，开启 CPU 原生指令集加速位运算，关闭调试信息
     target_compile_options(Vanitas-Bot PRIVATE -O2 -march=native -mpopcnt -Wall -DNDEBUG)
 endif()
+
+# 链接 psapi 库（Windows 下必须加）
+if (WIN32)
+    target_link_libraries(Vanitas-Bot psapi)
+endif()
