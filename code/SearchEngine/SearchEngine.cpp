@@ -2,7 +2,7 @@
 // #define MONITOR_LITE
 
 #include "SearchEngine.h"
-
+#ifdef MONITOR
 #ifdef _WIN32
 #include <psapi.h>
 #include <windows.h>
@@ -10,10 +10,35 @@
 #else
 #include <sys/resource.h>
 #endif
-
+#endif
 #include <algorithm>
 #include <cstdio>
 #include <iostream>
+#ifdef MONITOR
+// 内存统计结构体
+struct MemoryStats {
+    size_t peakMemory = 0;
+    int peakDepth = 0;
+    size_t totalMemory = 0;
+    size_t sampleCount = 0;
+
+    void update(size_t currentMem, int depth) {
+        if (currentMem > peakMemory) {
+            peakMemory = currentMem;
+            peakDepth = depth;
+        }
+        totalMemory += currentMem;
+        sampleCount++;
+    }
+
+    double getAverage() const {
+        return sampleCount > 0 ? (double)totalMemory / sampleCount : 0.0;
+    }
+};
+
+// 全局内存统计变量
+MemoryStats memStats;
+#endif
 
 // // 临时测试探针
 // uint64_t stat_nodes_evaluated = 0;
@@ -291,6 +316,18 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     TTable::Score lastScore = 0;
     int depth = 1;
     for (/*int depth = 1*/; depth <= MAX_DEPTH; ++depth) {
+        // 记录当前深度的内存使用情况
+#ifdef MONITOR
+#ifdef _WIN32
+        PROCESS_MEMORY_COUNTERS pmc;
+        GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
+        memStats.update(pmc.WorkingSetSize / 1024, depth);
+#else
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+        memStats.update(usage.ru_maxrss, depth);
+#endif
+#endif
         if (depth >= ASPIRATION_DEPTH) {
             // 设置渴望窗口
             alpha = std::max(lastScore - ASPIRATION_WINDOW,
@@ -457,6 +494,25 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
                stats.iidHits,
                (double)stats.iidHits * 100.0 / stats.iidTrials);
     }
+#endif
+
+    // 输出详细的内存统计信息
+#ifdef MONITOR
+    printf("内存统计报告:\n");
+    printf("  峰值内存使用: %zu KB (深度: %d)\n", memStats.peakMemory, memStats.peakDepth);
+    printf("  平均内存使用: %.2f KB\n", memStats.getAverage());
+    printf("  总采样次数: %zu\n", memStats.sampleCount);
+
+    // 输出最终内存状态
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS pmc;
+    GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
+    printf("  最终RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
+#else
+    struct rusage usageFinal;
+    getrusage(RUSAGE_SELF, &usageFinal);
+    printf("  最终RSS: %ld KB\n", usageFinal.ru_maxrss);
+#endif
 #endif
 
     return globalBestMove;
@@ -810,21 +866,6 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
     ++stats.evalsLite;
 #endif
 
-#ifdef MONITOR
-    if (stats.evalsLite % MEM_MONITOR_EVALUATE_LITE_FREQ == 0
-        && stats.evalsLite != 0) {  // 每固定次数调用监控一次
-#ifdef _WIN32
-        PROCESS_MEMORY_COUNTERS pmc;
-        GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        printf("[Memory Monitor - evaluateLite] RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
-#else
-        struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
-        printf("[Memory Monitor - evaluateLite] RSS: %ld KB\n", usage.ru_maxrss);
-#endif
-    }
-#endif
-
     using namespace BitEngine;
     // 分辨敌我
     Bitmap myAmazons, opAmazons;
@@ -869,21 +910,6 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     // 监测探针
 #ifdef MONITOR
     ++stats.evals;
-#endif
-
-#ifdef MONITOR
-    if (stats.evals % MEM_MONITOR_EVALUATE_FREQ == 0
-        && stats.evals != 0) {  // 每固定次数调用监控一次
-#ifdef _WIN32
-        PROCESS_MEMORY_COUNTERS pmc;
-        GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        printf("[Memory Monitor - evaluate] RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
-#else
-        struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
-        printf("[Memory Monitor - evaluate] RSS: %ld KB\n", usage.ru_maxrss);
-#endif
-    }
 #endif
 
     using namespace BitEngine;
@@ -968,20 +994,7 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
     ++stats.evalsEnd;
 #endif
 
-#ifdef MONITOR
-    if (stats.evalsEnd % MEM_MONITOR_EVALUATE_ENDGAME_FREQ == 0
-        && stats.evalsEnd != 0) {  // 每固定次数调用监控一次
-#ifdef _WIN32
-        PROCESS_MEMORY_COUNTERS pmc;
-        GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
-        printf("[Memory Monitor - evaluateEndGame] RSS: %lu KB\n", pmc.WorkingSetSize / 1024);
-#else
-        struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
-        printf("[Memory Monitor - evaluateEndGame] RSS: %ld KB\n", usage.ru_maxrss);
-#endif
-    }
-#endif
+    using namespace BitEngine;
 
     using namespace BitEngine;
     // 缓存
