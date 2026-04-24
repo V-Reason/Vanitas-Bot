@@ -138,6 +138,7 @@ enum class Player : int {
 };
 
 // 全局信息
+// 32B
 struct BitBoard {
     Bitmap blacks;  // 黑方棋子
     Bitmap whites;  // 白方棋子
