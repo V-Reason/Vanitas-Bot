@@ -1,10 +1,44 @@
-// #define MONITOR
+#define MONITOR
+#define MONITOR_MEM
 // #define MONITOR_LITE
 
 #include "SearchEngine.h"
 
+#ifdef MONITOR_MEM
+#ifdef _WIN32
+#define PSAPI_VERSION 1
+#include <windows.h>
+// 需要保证<windows.h>在<psapi.h>之前！
+#include <psapi.h>
+#else
+#include <sys/resource.h>
+#endif
+#endif
+
 #include <algorithm>
 #include <cstdio>
+#include <iostream>
+
+#ifdef MONITOR_MEM
+// 内存统计结构体
+struct MemoryStats {
+    size_t peakMemory = 0;
+    // size_t totalMemory = 0;
+    // size_t sampleCount = 0;
+
+    void update(size_t currentMem) {
+        if (currentMem > peakMemory) {
+            peakMemory = currentMem;
+        }
+        // totalMemory += currentMem;
+        // sampleCount++;
+    }
+
+    // double getAverage() const {
+    //     return sampleCount > 0 ? (double)totalMemory / sampleCount : 0.0;
+    // }
+} memStats;
+#endif
 
 // // 临时测试探针
 // uint64_t stat_nodes_evaluated = 0;
@@ -92,10 +126,13 @@ class StateMachine {
 
     State currState = State::TT_MOVE;
 
+    bool isKiller1OK = false;
+    bool isKiller2OK = false;
+
+    int currIndex = 0;
     BitEngine::MoveList moveList;
     int moveWeight[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 不要再这里写{}防止频繁内存清零
     // int indices[BitEngine::MAX_AMAZON_MOVE_TYPE];  // 索引数组，解决排序问题，22kb，容易爆栈
-    int currIndex = 0;
 
     // TODO: 判断走法是否合法
     bool isValid(BitEngine::Move move) {
@@ -105,9 +142,6 @@ class StateMachine {
         }
         return false;
     }
-
-    bool isKiller1OK = false;
-    bool isKiller2OK = false;
 
     inline void toNextState() {
         // if(currState != State::NONE)更安全一点，不过State::NONE里不写toNextState()就好了
@@ -282,6 +316,18 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     TTable::Score lastScore = 0;
     int depth = 1;
     for (/*int depth = 1*/; depth <= MAX_DEPTH; ++depth) {
+        // 记录当前深度的内存使用情况
+#ifdef MONITOR_MEM
+#ifdef _WIN32
+        PROCESS_MEMORY_COUNTERS pmc;
+        GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
+        memStats.update(pmc.WorkingSetSize / 1024);
+#else
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+        memStats.update(usage.ru_maxrss, depth);
+#endif
+#endif
         if (depth >= ASPIRATION_DEPTH) {
             // 设置渴望窗口
             alpha = std::max(lastScore - ASPIRATION_WINDOW,
@@ -448,6 +494,25 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
                stats.iidHits,
                (double)stats.iidHits * 100.0 / stats.iidTrials);
     }
+#endif
+
+    // 输出详细的内存统计信息
+#ifdef MONITOR_MEM
+    printf("内存统计报告:\n");
+    printf("  PVS结束后峰值内存使用: %zu KB \n", memStats.peakMemory);
+    // printf("  平均内存使用: %.2f KB\n", memStats.getAverage());
+    // printf("  总采样次数: %zu\n", memStats.sampleCount);
+
+    // 输出最终内存状态
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS pmc;
+    GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
+    printf("  最终RSS: %zu KB\n", pmc.WorkingSetSize / 1024);
+#else
+    struct rusage usageFinal;
+    getrusage(RUSAGE_SELF, &usageFinal);
+    printf("  最终RSS: %zd KB\n", usageFinal.ru_maxrss);
+#endif
 #endif
 
     return globalBestMove;
@@ -928,6 +993,8 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
     --stats.evals;
     ++stats.evalsEnd;
 #endif
+
+    using namespace BitEngine;
 
     using namespace BitEngine;
     // 缓存
