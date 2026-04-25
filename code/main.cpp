@@ -13,8 +13,6 @@
 #include <cassert>
 
 using namespace VanitasBot;
-using namespace VanitasBot::BitEngine;
-using namespace VanitasBot::SearchEngine;
 using namespace VanitasBot::Utilities;
 
 int main() {
@@ -44,18 +42,18 @@ int main() {
     // board.arrows = 0x0761284A1248021FULL;  // 散落的箭矢
     // board.player = BitEngine::Player::BLACK;
 
-    // // 模拟残局：空格剩余 12 个，棋盘高度破碎
-    // board.blacks = (1ULL << 0) | (1ULL << 8) | (1ULL << 55) | (1ULL << 63);
-    // board.whites = (1ULL << 27) | (1ULL << 28) | (1ULL << 35) | (1ULL << 36);
-    // board.arrows = 0x7E7EBDDBDBBD7E7EULL;
-    // board.player = BitEngine::Player::BLACK;
+    // 模拟残局：空格剩余 12 个，棋盘高度破碎
+    board.blacks = (1ULL << 0) | (1ULL << 8) | (1ULL << 55) | (1ULL << 63);
+    board.whites = (1ULL << 27) | (1ULL << 28) | (1ULL << 35) | (1ULL << 36);
+    board.arrows = 0x7E7EBDDBDBBD7E7EULL;
+    board.player = BitEngine::Player::BLACK;
 
 #ifdef LOGGER_ON
     Logger::showBitboard(board);
 #endif
 
     BitEngine::Move chosenMove;
-    chosenMove = search(board);
+    chosenMove = SearchEngine::search(board);
 
     IOEngine::outputAnswer(chosenMove);
 

@@ -60,27 +60,11 @@ constexpr int MAX_DEPTH = 100;  // 内存池保证不再爆栈，但没必要再
 constexpr int MAX_PLY = 128;  // 理论上MAX_PLY不应该小于MAX_DEPTH，否则会导致内存池访问越界
 // 超时检查间隔
 constexpr int CHECK_GAP_MASK = (1 << 13) - 1;  // 取模掩码，毎8192回合检查一次超时，1024为最稳数据
-// 局面情况分类
-constexpr int MIDDLEGAME_PIECES = 44;
-constexpr int ENDGAME_PIECES = 16;
-constexpr int W_CHANGE_PIECES = 40;
-// 中心掩码
-constexpr BitEngine::Bitmap CENTER_MASK
-    = (1ULL << 27) | (1ULL << 28) | (1ULL << 35) | (1ULL << 36);  // 中心区域(3,3),(3,4),(4,3),(4,4)
-// 加分系数
-constexpr int CENTER_FACTOR = 20;             // 中心点
-constexpr int ABSOLUTE_DOMAIN_FACTOR = 1000;  // 绝对领域
-constexpr int MELEE_FACTOR = 10;              // 混战
-
-constexpr int W_MOB_A = 6;  // 机动性
-constexpr int W_MOB_B = 2;
-constexpr int W_TER_A = 4;  // 领地
-constexpr int W_TER_B = 8;
-constexpr int LITE_FACTOR = (W_MOB_A + W_TER_B + W_TER_A + W_TER_B) / 1.5;  // Lite版本系数
 // 启发数据
 using MoveWeight = int;             // 走法权重
 constexpr int INVAILD_WEIGHT = -1;  // 无效权重
 constexpr int KILLER_NUM = 2;       // 杀手数量（不要轻易改动，有些代码写死了）
+
 // [ 弃用 ]
 // constexpr int TTABLE_WEIGHT = 1 << 30;  // 置换表权重
 // constexpr int KTABLE_WEIGHT = 1 << 29;  // 杀手权重
@@ -108,8 +92,67 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board);
 TTable::Score evaluate(const BitEngine::BitBoard& board);
 TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
                               BitEngine::Bitmap empty,
+                              BitEngine::Bitmap blocked,
                               BitEngine::Bitmap myAmazons,
                               BitEngine::Bitmap opAmazons);  // 残局特化
+
+// Piece-Square Tables 子力位置表
+// clang-format off
+constexpr int PST[BitEngine::AMAZON_BOARD_SQUARE]={
+    -20, -10, -10, -10, -10, -10, -10, -20,
+    -10,   0,   5,   5,   5,   5,   0, -10,
+    -10,   5,  15,  20,  20,  15,   5, -10,
+    -10,   5,  20,  30,  30,  20,   5, -10,
+    -10,   5,  20,  30,  30,  20,   5, -10,
+    -10,   5,  15,  20,  20,  15,   5, -10,
+    -10,   0,   5,   5,   5,   5,   0, -10,
+    -20, -10, -10, -10, -10, -10, -10, -20,
+};
+// clang-format on
+
+// 计算PST总分
+inline int evaluatePST(BitEngine::Bitmap amazons) {
+    int reScore = 0;
+    while (amazons) {
+        reScore += PST[BitEngine::fnlBit(amazons)];
+        BitEngine::kicBit(amazons);
+    }
+    return reScore;
+}
+
+// 平滑插值函数（整数版）（无夹挤）
+// 系数 t = phase / range
+inline int lerp(int a, int b, int phase, int scale) {
+    return a + ((b - a) * phase) / scale;
+}
+
+// 局面情况边界
+constexpr int BEGINGAME_PIECES = 56;
+constexpr int MIDDLEGAME_PIECES = 44;
+constexpr int ENDGAME_PIECES = 16;
+constexpr int W_CHANGE_PIECES = 40;
+
+// 局面进度标尺
+constexpr int PHASE_SCALE = 1 << 8;  // 256好算，和RGB差不多
+constexpr int PHASE_SPAN = BEGINGAME_PIECES - ENDGAME_PIECES;
+
+// 加分系数
+constexpr int CENTER_FACTOR = 20;                    // 中心点
+constexpr int ABSOLUTE_DOMAIN_FACTOR = 1000;         // 绝对领域
+constexpr int MELEE_FACTOR = 100;                    // 混战
+constexpr int MELEE_FACTOR_LOW = MELEE_FACTOR / 10;  // 混战（辅助系数）
+
+constexpr int W_MOB_A = 6, W_MOB_B = 2;  // 机动性
+constexpr int W_TER_A = 2, W_TER_B = 8;  // 领地
+constexpr int W_PST_A = 2, W_PST_B = 1;  // pst
+
+// constexpr int LITE_FACTOR
+//     = ((W_MOB_A + W_MOB_B) + (W_TER_A + W_TER_B) + (W_PST_A + W_PST_B)) / 2.5;  // Lite系数
+
+// // 中心掩码
+// constexpr BitEngine::Bitmap CENTER_MASK
+//     = (1ULL << 27) | (1ULL << 28) | (1ULL << 35) | (1ULL << 36);  //
+//     中心区域(3,3),(3,4),(4,3),(4,4)
 
 // // 全量衰减历史权重
 // inline void decayHTable() {

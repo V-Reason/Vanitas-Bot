@@ -80,14 +80,14 @@ enum class Offset : int {
 #define MOVE_TO_S(pos) (((pos) << static_cast<int>(Offset::toFILE)))
 
 #define MOVE_TO_E(pos) \
-    (((pos) >> static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+    (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_LEFT))
 #define MOVE_TO_W(pos) \
-    (((pos) << static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+    (((pos) >> static_cast<int>(Offset::toRANK)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
 
 #define MOVE_TO_NE(pos) \
-    (((pos) >> static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
+    (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_LEFT))
 #define MOVE_TO_SW(pos) \
-    (((pos) << static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
+    (((pos) >> static_cast<int>(Offset::toDIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
 
 #define MOVE_TO_NW(pos) \
     (((pos) >> static_cast<int>(Offset::toANTI_DIAGONAL)) & static_cast<Bitmap>(MapMask::NO_RIGHT))
@@ -199,7 +199,7 @@ inline Index getArrow(Move m) {
 }
 
 // 生成国王八步标记
-inline Bitmap getKingMoves(Bitmap region) {
+inline Bitmap getKingMoves(Bitmap region, Bitmap blocked) {
     // return MOVE_TO_E(region) | MOVE_TO_W(region) | MOVE_TO_S(region) | MOVE_TO_N(region)
     //        | MOVE_TO_SE(region) | MOVE_TO_NE(region) | MOVE_TO_NW(region) | MOVE_TO_SW(region);
     // 左右画线
@@ -207,7 +207,7 @@ inline Bitmap getKingMoves(Bitmap region) {
     Bitmap w = MOVE_TO_W(region);
     Bitmap line = e | region | w;
     // 上下移动
-    return (MOVE_TO_N(line) | line | MOVE_TO_S(line)) & ~region;  // 剔除起始位置
+    return (MOVE_TO_N(line) | line | MOVE_TO_S(line)) & ~region & ~blocked;  // 剔除起始位置与障碍
 }
 
 // 生成皇后八向标记

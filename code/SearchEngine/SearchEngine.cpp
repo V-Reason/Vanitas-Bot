@@ -122,8 +122,7 @@ enum class State : int {
     NONE         // 状态耗尽
 };
 
-// 状态机（实现延迟计算）
-// 注意：单个状态机约 45KB
+// 流转状态机（实现延迟计算）
 class StateMachine {
    private:
     const BitEngine::BitBoard& board;
@@ -904,29 +903,44 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
 
     // 障碍与空地缓存
     Bitmap allBlocked = board.allBlocked();
+    int emptyCnt = cntBit(~allBlocked);
 
     // 机动性评估：
     // 汇总一步能到达的所有格子
-    Bitmap myReach = 0;
-    Bitmap me = myAmazons;
+    Bitmap myReach = 0, me = myAmazons;
     while (me) {
-        Index idx = fnlBit(me);
-        myReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        // Index idx = fnlBit(me);
+        myReach |= generateQueenMoves(makeMask(fnlBit(me)), allBlocked);
         kicBit(me);
     }
-    Bitmap opReach = 0;
-    Bitmap op = opAmazons;
+    Bitmap opReach = 0, op = opAmazons;
     while (op) {
-        Index idx = fnlBit(op);
-        opReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        // Index idx = fnlBit(op);
+        opReach |= generateQueenMoves(makeMask(fnlBit(op)), allBlocked);
         kicBit(op);
     }
     // 量化
     int myMobility = cntBit(myReach);
     int opMobility = cntBit(opReach);
 
+    // PST位置分
+    int myPSTScore = evaluatePST(myAmazons);
+    int opPSTScore = evaluatePST(opAmazons);
+
+    // 动态权重，平滑插值
+    int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;  // 局面进度
+    phase = std::clamp(phase, 0, PHASE_SCALE);                               // 夹挤，防止外推
+    int w_mob = lerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
+    int w_ter = lerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
+    int w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
+    int w_mob_ter_merge
+        = w_mob + (w_ter * 7) / 10;  // 领地权重的代偿，70%，用于量纲对齐，避免和全量差太多
+
     // 计算总分
-    return LITE_FACTOR * (myMobility - opMobility);
+    // clang-format off
+    return w_mob_ter_merge * (myMobility - opMobility)
+         + w_pst           * (myPSTScore - opPSTScore);
+    // clang-format on
 }
 
 TTable::Score evaluate(const BitEngine::BitBoard& board) {
@@ -955,24 +969,22 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
 
     // 残局特化
     if (emptyCnt <= ENDGAME_PIECES)
-        return evaluateEndGame(board, empty, myAmazons, opAmazons);
+        return evaluateEndGame(board, empty, allBlocked, myAmazons, opAmazons);
 
     // 普通局面
 
     // 机动性评估：
     // 汇总一步能到达的所有格子
-    Bitmap myReach = 0;
-    Bitmap me = myAmazons;
+    Bitmap myReach = 0, me = myAmazons;
     while (me) {
-        Index idx = fnlBit(me);
-        myReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        // Index idx = fnlBit(me);
+        myReach |= generateQueenMoves(makeMask(fnlBit(me)), allBlocked);
         kicBit(me);
     }
-    Bitmap opReach = 0;
-    Bitmap op = opAmazons;
+    Bitmap opReach = 0, op = opAmazons;
     while (op) {
-        Index idx = fnlBit(op);
-        opReach |= generateQueenMoves(makeMask(idx), allBlocked);
+        // Index idx = fnlBit(op);
+        opReach |= generateQueenMoves(makeMask(fnlBit(op)), allBlocked);
         kicBit(op);
     }
     // 量化
@@ -984,33 +996,52 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     int myExclusive = cntBit(myReach & ~opReach);
     int opExclusive = cntBit(~myReach & opReach);
 
-    // 中局特化
-    // 中心区域加分
-    int myCenter = 0;
-    int opCenter = 0;
-    if (emptyCnt > MIDDLEGAME_PIECES) {
-        myCenter = cntBit(myReach & CENTER_MASK);
-        opCenter = cntBit(opReach & CENTER_MASK);
-    }
+    // PST位置分数
+    int myPSTScore = evaluatePST(myAmazons);
+    int opPSTScore = evaluatePST(opAmazons);
 
-    // 动态权重
-    // 机动性逐渐贬值，领地逐渐升值
-    int w_mob, w_ter;
-    if (emptyCnt > 40) {
-        w_mob = W_MOB_A;
-        w_ter = W_TER_A;
-    } else {
-        w_mob = W_MOB_B;
-        w_ter = W_TER_B;
-    }
+    // 动态权重，平滑插值
+    int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;  // 局面进度
+    phase = std::clamp(phase, 0, PHASE_SCALE);                               // 夹挤，防止外推
+    int w_mob = lerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
+    int w_ter = lerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
+    int w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
 
     // 计算总分
-    return w_mob * (myMobility - opMobility) + w_ter * (myExclusive - opExclusive)
-           + CENTER_FACTOR * (myCenter - opCenter);
+    // clang-format off
+    return w_mob * (myMobility - opMobility)
+         + w_ter * (myExclusive - opExclusive)
+         + w_pst * (myPSTScore - opPSTScore);
+    // clang-format on
+
+    // // 中局特化
+    // // 中心区域加分
+    // int myCenter = 0;
+    // int opCenter = 0;
+    // if (emptyCnt > MIDDLEGAME_PIECES) {
+    //     myCenter = cntBit(myReach & CENTER_MASK);
+    //     opCenter = cntBit(opReach & CENTER_MASK);
+    // }
+
+    // // 动态权重
+    // // 机动性逐渐贬值，领地逐渐升值
+    // int w_mob, w_ter;
+    // if (emptyCnt > 40) {
+    //     w_mob = W_MOB_A;
+    //     w_ter = W_TER_A;
+    // } else {
+    //     w_mob = W_MOB_B;
+    //     w_ter = W_TER_B;
+    // }
+
+    // // 计算总分
+    // return w_mob * (myMobility - opMobility) + w_ter * (myExclusive - opExclusive)
+    //        + CENTER_FACTOR * (myCenter - opCenter);
 }
 
 TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
                               BitEngine::Bitmap empty,
+                              BitEngine::Bitmap blocked,
                               BitEngine::Bitmap myAmazons,
                               BitEngine::Bitmap opAmazons) {
     // 监测探针
@@ -1020,12 +1051,16 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
 #endif
 
     using namespace BitEngine;
-
-    using namespace BitEngine;
     // 缓存
     TTable::Score score = 0;
+
     Bitmap visited = 0;
     Bitmap unvisited = empty;
+
+    Bitmap myRegion = 0;
+    Bitmap opRegion = 0;
+    Bitmap meleeRegion = 0;
+    // Bitmap unownedRegion = 0; 无主之地，忽略计数，在此提醒
 
     // 遍历所有空地，寻找独立连通区域
     while (unvisited) {
@@ -1035,7 +1070,7 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
         Bitmap lastRegion = 0;
         while (region != lastRegion) {
             lastRegion = region;
-            region |= (getKingMoves(region) & empty);
+            region |= getKingMoves(region, blocked);
         }
 
         // 更新访问标志
@@ -1043,24 +1078,61 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
         clsBit(unvisited, region);
 
         // 判定区域归属（边缘是否碰到棋子）
-        Bitmap regionBorder = getKingMoves(region);
-        bool myRegion = (regionBorder & myAmazons);
-        bool opRegion = (regionBorder & opAmazons);
+        Bitmap regionBorder = getKingMoves(region, 0);
+        bool isMyRegion = (regionBorder & myAmazons);
+        bool isOpRegion = (regionBorder & opAmazons);
 
         // 结算
-        int regionSize = cntBit(region);
-        if (myRegion && !opRegion) {  // 我的绝对领域
-            score += ABSOLUTE_DOMAIN_FACTOR * regionSize;
-        } else if (!myRegion && opRegion) {  // 她的绝对领域
-            score -= ABSOLUTE_DOMAIN_FACTOR * regionSize;
-        } else if (myRegion && opRegion) {  // 混战
-            // TODO：没想好怎么设计
-            // 机动性给简单的分
-            int myMob = cntBit(getKingMoves(myAmazons) & region);
-            int opMob = cntBit(getKingMoves(opAmazons) & region);
-            score += MELEE_FACTOR * (myMob - opMob);
+        // 先记录，后乘算
+        // 注意：(!isMyRegion && !isOpRegion) 意味着无主之地，不在此记录
+        if (isMyRegion && !isOpRegion) {  // 我的绝对领域
+            myRegion |= region;
+            // score += ABSOLUTE_DOMAIN_FACTOR * regionSize;
+        } else if (!isMyRegion && isOpRegion) {  // 她的绝对领域
+            opRegion |= region;
+            // score -= ABSOLUTE_DOMAIN_FACTOR * regionSize;
+        } else if (isMyRegion && isOpRegion) {  // 混战
+            meleeRegion |= region;
+            // // TODO：没想好怎么设计
+            // // 机动性给简单的分
+            // int myMob = cntBit(getKingMoves(myAmazons) & region);
+            // int opMob = cntBit(getKingMoves(opAmazons) & region);
+            // score += MELEE_FACTOR * (myMob - opMob);
         }
     }  // end while
+
+    // 计算绝对领域得分
+    score += (ABSOLUTE_DOMAIN_FACTOR * (cntBit(myRegion) - cntBit(opRegion)));
+
+    // 计算混战区分数
+    if (meleeRegion != 0) {
+        // 机动性评估：
+        // 汇总一步能到达的所有格子
+        Bitmap myReach = 0, me = myAmazons;
+        while (me) {
+            // Index idx = fnlBit(me);
+            myReach |= generateQueenMoves(makeMask(fnlBit(me)), blocked);
+            kicBit(me);
+        }
+        Bitmap opReach = 0, op = opAmazons;
+        while (op) {
+            // Index idx = fnlBit(op);
+            opReach |= generateQueenMoves(makeMask(fnlBit(op)), blocked);
+            kicBit(op);
+        }
+        // 量化
+        int myMobility = cntBit(myReach & meleeRegion);
+        int opMobility = cntBit(opReach & meleeRegion);
+
+        // 领地评估：
+        // 汇总能转化成绝对领域的格子
+        int myExclusive = cntBit(myReach & ~opReach & meleeRegion);
+        int opExclusive = cntBit(~myReach & opReach & meleeRegion);
+
+        // 混战分数
+        score += MELEE_FACTOR * (myExclusive - opExclusive);
+        score += MELEE_FACTOR_LOW * (myMobility - opMobility);
+    }
 
     return score;
 }

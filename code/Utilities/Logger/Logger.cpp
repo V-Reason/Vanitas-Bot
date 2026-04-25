@@ -2,36 +2,8 @@
 
 #ifdef LOGGER_ON
 
-#include <string>
-
 namespace VanitasBot::Utilities {
 using namespace std;
-// 重置色
-#define RESET "\033[0m"
-
-// 前景色
-#define _RED    "\033[31m"
-#define _GREEN  "\033[32m"
-#define _YELLOW "\033[33m"
-#define _BLUE   "\033[34m"
-#define _WHITE  "\033[37m"
-#define _GRAY   "\033[90m"
-#define _BLACK  "\033[30m"
-
-// 背景色
-#define BG_BLACK  "\033[40m"
-#define BG_RED    "\033[41m"
-#define BG_BLUE   "\033[44m"
-#define BG_GREEN  "\033[42m"
-#define BG_YELLOW "\033[43m"
-#define BG_GRAY   "\033[47m"
-
-// 字符映射
-const string EmptyCell = string(_GRAY) + "· " + string(RESET);                       // 灰点
-const string FullCell = string(BG_GRAY) + string(_GREEN) + "O " + string(RESET);     // 绿圈
-const string WhiteAmazon = string(BG_BLUE) + string(_WHITE) + "W " + string(RESET);  // 蓝底白W
-const string BlackAmazon = string(BG_RED) + string(_BLACK) + "B " + string(RESET);   // 红底黑B
-const string BlockedCell = string(BG_BLACK) + string(_GRAY) + "X " + string(RESET);  // 黑底灰叉
 
 void Logger::showBitmap(const BitEngine::Bitmap& bitmap, const char* title) {
     std::cout << "--- " << title << " ---" << std::endl;
