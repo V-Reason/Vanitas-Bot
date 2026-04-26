@@ -9,15 +9,16 @@
 #include <cstring>
 
 namespace VanitasBot::TTable {
-using Score = int16_t;  // NegaMax必须可用正负数
+using Score = int32_t;  // NegaMax必须可用正负数
 using Depth = int8_t;   // 允许负数
 using Ply = uint8_t;    // ply
 
 // 分数上下限
 // int16_t的取值范围是-32768~32767
-constexpr Score SCORE_INFINITY = 30000;  //  手动制定，防溢出
-constexpr Score SCORE_MATE = 29000;      //  用于杀棋的深度惩罚，留了3767的深度安全空间
-constexpr Score SCORE_WIN = 28900;       //  必胜解的最低分数
+// int32_t的取值范围是-2147483648~2147483647
+constexpr Score SCORE_INFINITY = 1000000;            //  手动制定，防溢出
+constexpr Score SCORE_MATE = SCORE_INFINITY - 1000;  //  用于杀棋的深度惩罚，比如MATA+-(depth * K)
+constexpr Score SCORE_WIN = SCORE_MATE - 1000;       //  必胜解的最低分数
 
 // 节点评估标志
 enum class NodeFlag : uint8_t {
@@ -26,17 +27,17 @@ enum class NodeFlag : uint8_t {
     UPPER_BOUND,  // 上界（Fail-Low触发）
 };
 
-// 置换表数据 128bit -> 16B 刚好合适Cache
+// 置换表数据 142bit -> 144bit 18B -> 24B
 struct TTableData {
     HashEngine::Key hash;      // 64bit 局面哈希值
     BitEngine::Move bestMove;  // 32bit 局面最优解
-    Score score;               // 16bit 局面评分
+    Score score;               // 32bit 局面评分
     Depth depth;               // 8bit  该节点所在搜索深度
     NodeFlag flag;             // 8bit  节点评估标记
 };
 
 // 配置数据
-constexpr size_t MAX_TTABLE_SIZE = 1 << 22;          // 约400万条，64MB
+constexpr size_t MAX_TTABLE_SIZE = 1 << 22;          // 约400万条，96MB
 constexpr size_t TTABLE_MASK = MAX_TTABLE_SIZE - 1;  // 用于取模运算
 
 // 全局静态数组表

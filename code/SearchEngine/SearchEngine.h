@@ -31,8 +31,8 @@ namespace VanitasBot::SearchEngine {
 constexpr int ALLOW_IID_DEPTH = 4;  // 允许IID的深度阈值
 constexpr int IID_DEPTH_DECAY = 2;  // IID的深度裁切力度
 // Futility Pruning 边缘剪枝/静态空步剪枝
-constexpr int ALLOW_FP_DEPTH = 3;    // 允许fp的深度阈值
-constexpr int FP_MARGIN_BASE = 150;  // 每一步棋的富余基数，即每步最多能拿多少分
+constexpr int ALLOW_FP_DEPTH = 3;     // 允许fp的深度阈值
+constexpr int FP_MARGIN_BASE = 1250;  // 每一步棋的富余基数，即每步最多能拿多少分
 // N-Best截断
 constexpr int ALLOW_N_BEST = 3;    // 允许N-Best的深度阈值
 constexpr int N_BEST_DEPTH_1 = 1;  // N-Best的深度确值
@@ -50,8 +50,8 @@ constexpr int LMR_RANK_2 = 30;      // 动态调整，阈值2
 constexpr int ALLOW_NULLMOVE_DEPTH = 3;  // 允许空步剪枝的深度阈值
 constexpr int NULLMOVE_R = 3;            // 空步子树深度衰减常量
 // 渴望窗口
-constexpr int ASPIRATION_DEPTH = 3;     // 开始层数
-constexpr int ASPIRATION_WINDOW = 100;  // 宽度
+constexpr int ASPIRATION_DEPTH = 3;      // 开始层数
+constexpr int ASPIRATION_WINDOW = 1000;  // 宽度
 // 超时标志
 extern bool isTimeout_final;
 // 最大深度
@@ -99,14 +99,23 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
 // Piece-Square Tables 子力位置表
 // clang-format off
 constexpr int PST[BitEngine::AMAZON_BOARD_SQUARE]={
-    -20, -10, -10, -10, -10, -10, -10, -20,
-    -10,   0,   5,   5,   5,   5,   0, -10,
-    -10,   5,  15,  20,  20,  15,   5, -10,
-    -10,   5,  20,  30,  30,  20,   5, -10,
-    -10,   5,  20,  30,  30,  20,   5, -10,
-    -10,   5,  15,  20,  20,  15,   5, -10,
-    -10,   0,   5,   5,   5,   5,   0, -10,
-    -20, -10, -10, -10, -10, -10, -10, -20,
+    -10, -10, -10, -10, -10, -10, -10, -10,
+    -10,   5,  10,  10,  10,  10,   5, -10,
+    -10,  10,  15,  15,  15,  15,  10, -10,
+    -10,  10,  15,  10,  10,  15,  10, -10,
+    -10,  10,  15,  10,  10,  15,  10, -10,
+    -10,  10,  15,  15,  15,  15,  10, -10,
+    -10,   5,  10,  10,  10,  10,   5, -10,
+    -10, -10, -10, -10, -10, -10, -10, -10,
+
+    // -20, -10, -10, -10, -10, -10, -10, -20,
+    // -10,   0,   5,   5,   5,   5,   0, -10,
+    // -10,   5,  15,  20,  20,  15,   5, -10,
+    // -10,   5,  20,  30,  30,  20,   5, -10,
+    // -10,   5,  20,  30,  30,  20,   5, -10,
+    // -10,   5,  15,  20,  20,  15,   5, -10,
+    // -10,   0,   5,   5,   5,   5,   0, -10,
+    // -20, -10, -10, -10, -10, -10, -10, -20,
 };
 // clang-format on
 
@@ -129,23 +138,35 @@ inline int lerp(int a, int b, int phase, int scale) {
 // 局面情况边界
 constexpr int BEGINGAME_PIECES = 56;
 constexpr int MIDDLEGAME_PIECES = 44;
-constexpr int ENDGAME_PIECES = 16;
-constexpr int W_CHANGE_PIECES = 40;
+constexpr int ENDGAME_PIECES = 20;
+// constexpr int W_CHANGE_PIECES = 40;
 
 // 局面进度标尺
 constexpr int PHASE_SCALE = 1 << 8;  // 256好算，和RGB差不多
 constexpr int PHASE_SPAN = BEGINGAME_PIECES - ENDGAME_PIECES;
 
 // 加分系数
-constexpr int CENTER_FACTOR = 20;                    // 中心点
-constexpr int ABSOLUTE_DOMAIN_FACTOR = 1000;         // 绝对领域
-constexpr int MELEE_FACTOR = 100;                    // 混战
-constexpr int MELEE_FACTOR_LOW = MELEE_FACTOR / 10;  // 混战（辅助系数）
+constexpr int ABSOLUTE_DOMAIN_FACTOR = 1200;  // 绝对领域
+constexpr int MELEE_W_MOB = 50;               // 混战_机动
+constexpr int MELEE_W_TER = 800;              // 混战_领地
 
-constexpr int W_MOB_A = 6, W_MOB_B = 2;  // 机动性
-constexpr int W_TER_A = 2, W_TER_B = 8;  // 领地
-constexpr int W_PST_A = 2, W_PST_B = 1;  // pst
+constexpr int DIST_1_FACTOR = -600;  // dist 1 惩罚
+constexpr int DIST_2_FACTOR = -200;  // dist 2 排斥
+constexpr int DIST_3_FACTOR = 400;   // dist 3 奖励
+// constexpr int DIST_4_FACTOR = 150;   // dist 4 吸引
 
+constexpr int W_MOB_A = 800, W_MOB_B = 300;   // 机动性
+constexpr int W_TER_A = 400, W_TER_B = 1000;  // 领地
+constexpr int W_PST_A = 30, W_PST_B = 5;      // 位置
+constexpr int W_SYN_A = 30, W_SYN_B = 5;      // 协同
+
+// 量纲对齐原始分参考
+// 机动：4*(15~25) => 60~100
+// 领地：0~40
+// 位置：-80~120
+// 协同：4*(-120~160)
+
+// constexpr int CENTER_FACTOR = 20;                    // 中心点
 // constexpr int LITE_FACTOR
 //     = ((W_MOB_A + W_MOB_B) + (W_TER_A + W_TER_B) + (W_PST_A + W_PST_B)) / 2.5;  // Lite系数
 
