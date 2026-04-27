@@ -1,4 +1,6 @@
+#define LOGGER_ON
 #include "../BitEngine/BitEngine.h"
+#include "../IOEngine/IOEngine.h"
 #include "../SearchEngine/SearchEngine.h"
 #include "../Utilities/Logger/Logger.h"
 #include "../Utilities/Timer/Timer.h"
@@ -11,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
 
 namespace VanitasBot::SearchEngine {
 
@@ -322,6 +325,9 @@ class SelfPlayManager {
 
     // 交互式单局游戏（逐步控制）
     void interactiveGame() {
+        // 必要的初始化步骤
+        Utilities::Timer::resetStartTime();
+        IOEngine::initIOEngine();
         BitEngine::BitBoard board = generateInitialBoard();
 
         // 如果不是自定义局面，则应用随机开局
@@ -430,6 +436,8 @@ class SelfPlayManager {
     };
 
     GameResult playSingleGame() {
+        // 必要的初始化步骤
+        Utilities::Timer::resetStartTime();
         BitEngine::BitBoard board = generateInitialBoard();
 
         // 如果不是自定义局面，则应用随机开局
@@ -507,6 +515,9 @@ class SelfPlayManager {
 
     // 运行多局自博弈
     void runSelfPlay() {
+        // 必要的初始化步骤
+        Utilities::Timer::resetStartTime();
+        IOEngine::initIOEngine();
         // 如果指定了输入文件，尝试加载
         if (!config_.input_file.empty()) {
             loadCustomBoard(config_.input_file);
