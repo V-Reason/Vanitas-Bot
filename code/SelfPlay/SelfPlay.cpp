@@ -315,8 +315,8 @@ class SelfPlayManager {
             BitEngine::applyMove(board, selected_move);
 
             // 切换玩家
-            board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
-                                                                      : BitEngine::Player::BLACK;
+            // board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
+            //                                                          : BitEngine::Player::BLACK;
         }
     }
 
@@ -401,8 +401,8 @@ class SelfPlayManager {
             }
 
             // 切换玩家
-            board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
-                                                                      : BitEngine::Player::BLACK;
+            // board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
+            //                                                         : BitEngine::Player::BLACK;
 
             // 显示更新后的棋盘
             VanitasBot::Utilities::Logger::showBitboard(board, "当前棋盘状态");
@@ -543,6 +543,7 @@ class SelfPlayManager {
 
         // 3. 重置其他全局状态
         Utilities::Timer::resetStartTime();
+        VanitasBot::SearchEngine::isTimeout_final = false;
         return result;
     }
 
