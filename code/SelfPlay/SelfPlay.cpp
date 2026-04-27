@@ -1,4 +1,5 @@
 #define LOGGER_ON
+#define SELF_PLAY_MAIN
 #include "../BitEngine/BitEngine.h"
 #include "../IOEngine/IOEngine.h"
 #include "../SearchEngine/SearchEngine.h"
@@ -6,6 +7,7 @@
 #include "../Utilities/Timer/Timer.h"
 
 #include <chrono>
+#include <climits>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -14,9 +16,13 @@
 #include <string>
 #include <vector>
 
-
 namespace VanitasBot::SearchEngine {
-
+extern BitEngine::Move KTable[MAX_PLY][KILLER_NUM];
+extern MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD_SQUARE]
+                        [BitEngine::AMAZON_BOARD_SQUARE];
+extern BitEngine::MoveList moveListPool[MAX_PLY];
+extern MoveWeight moveWeightPool[MAX_PLY][BitEngine::MAX_AMAZON_MOVE_TYPE];
+;
 // 将Move转换为字符串表示
 std::string moveToString(BitEngine::Move move) {
     BitEngine::Index from = BitEngine::getFrom(move);
@@ -279,16 +285,7 @@ class SelfPlayManager {
         }
 
         BitEngine::BitBoard board;
-
-        // 标准亚马逊棋开局布局 (8x8棋盘)
-        // 黑方：位置 0, 3, 6, 7
-        board.blacks = (1ULL << 0) | (1ULL << 3) | (1ULL << 6) | (1ULL << 7);  // 位置 0, 3, 6, 7
-        // 白方：位置 56, 59, 62, 63
-        board.whites
-            = (1ULL << 56) | (1ULL << 59) | (1ULL << 62) | (1ULL << 63);  // 位置 56, 59, 62, 63
-
-        board.player = BitEngine::Player::BLACK;  // 黑方先行
-
+        IOEngine::initBoard(board);
         return board;
     }
 
@@ -453,12 +450,6 @@ class SelfPlayManager {
 
         // 游戏主循环
         while (true) {
-            // 检查是否超时
-            if (Utilities::Timer::checkTimeouts()) {
-                result.game_interrupted = true;  // 标记为中断
-                break;
-            }
-
             // 生成所有合法走法
             BitEngine::MoveList move_list;
             BitEngine::generateAllMoves(board, move_list);
@@ -487,8 +478,25 @@ class SelfPlayManager {
             BitEngine::Move best_move = VanitasBot::SearchEngine::search(temp_board_for_search);
 
             // 如果搜索失败或超时，随机选择一个走法
-            if (best_move == 0) {
-                best_move = legal_moves[0];  // 选择第一个走法作为备选
+            if (best_move == 0 && !legal_moves.empty()) {
+                // 尝试评估每个走法并选择最好的
+                BitEngine::Move best_alternative = legal_moves[0];
+                int best_score = INT_MIN;
+
+                for (const auto& move : legal_moves) {
+                    // 创建临时棋盘以评估走法
+                    BitEngine::BitBoard test_board = board;
+                    BitEngine::applyMove(test_board, move);
+
+                    // 使用评估函数来评分
+                    int score = VanitasBot::SearchEngine::evaluate(test_board);
+
+                    if (score > best_score) {
+                        best_score = score;
+                        best_alternative = move;
+                    }
+                }
+                best_move = best_alternative;
             }
 
             // 记录走法
@@ -499,8 +507,8 @@ class SelfPlayManager {
             BitEngine::applyMove(board, best_move);
 
             // 切换玩家
-            board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
-                                                                      : BitEngine::Player::BLACK;
+            // board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
+            //                                                         : BitEngine::Player::BLACK;
 
             // 检查是否达到最大步数（平局条件）
             if (result.game_length >= 500) {  // 设定最大步数限制
@@ -510,6 +518,31 @@ class SelfPlayManager {
             }
         }
 
+        // 清理全局状态，避免影响下一局游戏
+        // 1. 清理TTable（置换表）
+        memset(VanitasBot::TTable::TTable, 0, sizeof(VanitasBot::TTable::TTable));
+
+        // 清空杀手表
+        memset(VanitasBot::SearchEngine::KTable, 0, sizeof(VanitasBot::SearchEngine::KTable));
+
+        // 清空历史表
+        memset(VanitasBot::SearchEngine::HTable, 0, sizeof(VanitasBot::SearchEngine::HTable));
+
+        // 清空走法列表池
+        memset(VanitasBot::SearchEngine::moveListPool,
+               0,
+               sizeof(VanitasBot::SearchEngine::moveListPool));
+
+        // 清空走法权重池
+        memset(VanitasBot::SearchEngine::moveWeightPool,
+               0,
+               sizeof(VanitasBot::SearchEngine::moveWeightPool));
+
+        // 2. 重置HashEngine
+        HashEngine::init();
+
+        // 3. 重置其他全局状态
+        Utilities::Timer::resetStartTime();
         return result;
     }
 
@@ -648,31 +681,119 @@ void runSelfPlayGames(int game_count = 100, int time_per_move_ms = 1000) {
 }
 
 // 主函数示例
+}  // namespace VanitasBot::SearchEngine
+
 #ifdef SELF_PLAY_MAIN
 int main() {
     std::cout << "VanitasBot 自博弈系统" << std::endl;
+    std::cout << "======================" << std::endl;
+    std::cout << "请选择测试模式：" << std::endl;
+    std::cout << "1. 快速测试 (2局, 1000ms/步, 0步随机开局)" << std::endl;
+    std::cout << "2. 标准测试 (5局, 1000ms/步, 1步随机开局)" << std::endl;
+    std::cout << "3. 深度测试 (3局, 3000ms/步, 2步随机开局)" << std::endl;
+    std::cout << "4. 无随机开局测试 (5局, 1000ms/步, 0步随机开局)" << std::endl;
+    std::cout << "5. 逐步控制模式 (交互式)" << std::endl;
+    std::cout << "6. 大规模测试 (20局, 1000ms/步, 1步随机开局)" << std::endl;
+    std::cout << "7. 从文件输入自定义局面" << std::endl;
+    std::cout << "======================" << std::endl;
+    std::cout << "请输入选项 (1-7): ";
 
-    // 配置自博弈参数
+    int choice;
+    std::cin >> choice;
+
     VanitasBot::SearchEngine::SelfPlayConfig config;
-    config.game_count = 5;                      // 对弈局数
-    config.time_per_move_ms = 2000;             // 每步思考时间(毫秒)
-    config.save_games = true;                   // 保存对弈记录
-    config.output_file = "selfplay_games.txt";  // 输出文件
-    config.enable_random_opening = true;        // 启用随机开局
-    config.random_opening_moves = 3;            // 随机开局步数
-    config.step_by_step = true;                 // 启用逐步控制模式
 
-    // 如果要使用特定局面，设置输入文件
-    // config.input_file = "example_board.txt";  // 指定输入局面文件
+    switch (choice) {
+        case 1:
+            config.game_count = 2;
+            config.time_per_move_ms = 1000;
+            config.enable_random_opening = false;
+            config.random_opening_moves = 0;
+            config.step_by_step = false;
+            config.output_file = "test_quick.txt";
+            std::cout << "\n模式: 快速测试" << std::endl;
+            break;
+        case 2:
+            config.game_count = 5;
+            config.time_per_move_ms = 1000;
+            config.enable_random_opening = true;
+            config.random_opening_moves = 1;
+            config.step_by_step = false;
+            config.output_file = "test_standard.txt";
+            std::cout << "\n模式: 标准测试" << std::endl;
+            break;
+        case 3:
+            config.game_count = 3;
+            config.time_per_move_ms = 3000;
+            config.enable_random_opening = true;
+            config.random_opening_moves = 2;
+            config.step_by_step = false;
+            config.output_file = "test_deep.txt";
+            std::cout << "\n模式: 深度测试" << std::endl;
+            break;
+        case 4:
+            config.game_count = 5;
+            config.time_per_move_ms = 1000;
+            config.enable_random_opening = false;
+            config.random_opening_moves = 0;
+            config.step_by_step = false;
+            config.output_file = "test_no_random.txt";
+            std::cout << "\n模式: 无随机开局测试" << std::endl;
+            break;
+        case 5:
+            config.game_count = 1;
+            config.time_per_move_ms = 2000;
+            config.enable_random_opening = true;
+            config.random_opening_moves = 1;
+            config.step_by_step = true;
+            config.save_games = false;
+            std::cout << "\n模式: 逐步控制模式" << std::endl;
+            break;
+        case 6:
+            config.game_count = 20;
+            config.time_per_move_ms = 1000;
+            config.enable_random_opening = true;
+            config.random_opening_moves = 1;
+            config.step_by_step = false;
+            config.output_file = "test_large.txt";
+            std::cout << "\n模式: 大规模测试" << std::endl;
+            break;
+        case 7:
+            std::cout << "\n模式: 从文件输入自定义局面" << std::endl;
+            std::cout << "请输入局面文件路径: ";
+            std::cin >> config.input_file;
+            config.use_custom_board = true;
+            config.game_count = 1;
+            config.time_per_move_ms = 1000;
+            config.enable_random_opening = false;
+            config.random_opening_moves = 0;
+            config.step_by_step = true;
+            config.save_games = false;
+            config.output_file = "custom_game.txt";
+            break;
+        default:
+            std::cout << "\n无效选项，使用默认配置" << std::endl;
+            config.game_count = 5;
+            config.time_per_move_ms = 1000;
+            config.enable_random_opening = true;
+            config.random_opening_moves = 1;
+            config.step_by_step = false;
+            config.output_file = "test_default.txt";
+            break;
+    }
+
+    config.save_games = true;
+
+    std::cout << "配置: " << config.game_count << "局, " << config.time_per_move_ms << "ms/步, "
+              << config.random_opening_moves << "步随机开局" << std::endl;
+    std::cout << "输出文件: " << config.output_file << std::endl;
 
     // 创建自博弈管理器并运行
     VanitasBot::SearchEngine::SelfPlayManager manager(config);
     manager.runSelfPlay();
 
-    std::cout << "自博弈完成！" << std::endl;
+    std::cout << "\n自博弈完成！" << std::endl;
 
     return 0;
 }
 #endif
-
-}  // namespace VanitasBot::SearchEngine
