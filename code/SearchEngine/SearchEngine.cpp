@@ -318,7 +318,7 @@ class StateMachine {
 BitEngine::Move search(BitEngine::BitBoard& board) {
     // // 临时：每次进入主搜时，强行重置一次计时器起点
     // startTime = std::chrono::steady_clock::now();
-    // isTimeout_final = false;
+    isTimeout_final = false;
 
     // 配置计时器
     Utilities::Timer::timeoutConfigs[0].isTimeOut = &isTimeout_final;
