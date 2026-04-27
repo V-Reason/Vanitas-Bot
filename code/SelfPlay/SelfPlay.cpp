@@ -1,5 +1,6 @@
 #define LOGGER_ON
 #define SELF_PLAY_MAIN
+#define MONITOR_LITE
 #include "../BitEngine/BitEngine.h"
 #include "../IOEngine/IOEngine.h"
 #include "../SearchEngine/SearchEngine.h"
@@ -435,6 +436,12 @@ class SelfPlayManager {
     GameResult playSingleGame() {
         // 必要的初始化步骤
         Utilities::Timer::resetStartTime();
+        // 清理全局状态，确保每局开始时是干净的
+        VanitasBot::SearchEngine::isTimeout_final = false;
+        memset(VanitasBot::TTable::TTable, 0, sizeof(VanitasBot::TTable::TTable));
+        memset(VanitasBot::SearchEngine::KTable, 0, sizeof(VanitasBot::SearchEngine::KTable));
+        memset(VanitasBot::SearchEngine::HTable, 0, sizeof(VanitasBot::SearchEngine::HTable));
+        HashEngine::init();
         BitEngine::BitBoard board = generateInitialBoard();
 
         // 如果不是自定义局面，则应用随机开局
