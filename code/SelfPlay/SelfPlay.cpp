@@ -441,6 +441,15 @@ class SelfPlayManager {
         memset(VanitasBot::TTable::TTable, 0, sizeof(VanitasBot::TTable::TTable));
         memset(VanitasBot::SearchEngine::KTable, 0, sizeof(VanitasBot::SearchEngine::KTable));
         memset(VanitasBot::SearchEngine::HTable, 0, sizeof(VanitasBot::SearchEngine::HTable));
+        // 清空走法列表池
+        memset(VanitasBot::SearchEngine::moveListPool,
+               0,
+               sizeof(VanitasBot::SearchEngine::moveListPool));
+
+        // 清空走法权重池
+        memset(VanitasBot::SearchEngine::moveWeightPool,
+               0,
+               sizeof(VanitasBot::SearchEngine::moveWeightPool));
         HashEngine::init();
         BitEngine::BitBoard board = generateInitialBoard();
 
@@ -740,7 +749,7 @@ int main() {
             std::cout << "\n模式: 深度测试" << std::endl;
             break;
         case 4:
-            config.game_count = 5;
+            config.game_count = 2;
             config.time_per_move_ms = 1000;
             config.enable_random_opening = false;
             config.random_opening_moves = 0;
