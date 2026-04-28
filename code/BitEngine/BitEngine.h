@@ -189,13 +189,13 @@ inline Move makeMove(Index from, Index to, Index arrow) {
 }
 // 从Move取出int信息
 inline Index getFrom(Move m) {
-    return m & 0x7F;
+    return m & 0x3F;  // 之前是0x7F，127，可能会导致HTable段错误，现在改成0x3F，63，至少不会越界了
 }
 inline Index getTo(Move m) {
-    return (m >> 7) & 0x7F;
+    return (m >> 7) & 0x3F;
 }
 inline Index getArrow(Move m) {
-    return (m >> 14) & 0x7F;
+    return (m >> 14) & 0x3F;
 }
 
 // 生成国王八步标记

@@ -202,12 +202,14 @@ class StateMachine {
                 toNextState();
                 if ((killer1 != 0 && killer1 != ttMove) || (killer2 != 0 && killer2 != ttMove)) {
                     for (int i = 0; i < moveList.count; ++i) {
-                        if (!isKiller1OK) {
-                            isKiller1OK = (moveList.moves[i] == killer1);
-                        }
-                        if (!isKiller2OK) {
-                            isKiller2OK = (moveList.moves[i] == killer2);
-                        }
+                        BitEngine::Move m = moveList.moves[i];  // 缓存
+                        if (!isKiller1OK && m == killer1)
+                            isKiller1OK = true;
+                        else if (!isKiller2OK && m == killer2)
+                            isKiller2OK = true;
+
+                        if (isKiller1OK && isKiller2OK)
+                            break;
                     }
                 }
                 [[fallthrough]];
@@ -824,7 +826,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         // 悔棋
         BitEngine::resetMove(board, move);
 
-        // TODO:超时处理
+        // 超时处理
         if (isTimeout_final)
             return 0;
 
@@ -868,7 +870,8 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
     // 终局判断
     if (moveCnt == 0 && !stateMachine.hasNext()) {
-        return -TTable::SCORE_MATE + depth;  // +depth 争取死慢点/赢快点
+        // +ply 争取死慢点/赢快点（注意：负极大搜索中，不要使用+depth）
+        return -TTable::SCORE_MATE + ply;
     }
 
     // 写入TTable置换表
@@ -1002,48 +1005,57 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     // int myExclusive = cntBit(myReach & ~opReach);
     // int opExclusive = cntBit(~myReach & opReach);
 
-    // PST位置分数
-    int diffPST = evaluatePST(myAmazons) - evaluatePST(opAmazons);
-    // int myPSTScore = evaluatePST(myAmazons);
-    // int opPSTScore = evaluatePST(opAmazons);
-
-    // 协同模型
-    // 切比雪夫距离——串行计算，遂放弃
-    // 形态学膨胀——并行计算
-    Bitmap layer1, layer2, layer3;
-    int d1, d2, d3;
-    // 己方：
-    //  一圈
-    layer1 = getKingMoves(myAmazons, 0);
-    d1 = cntBit(layer1 & myAmazons);
-    //  二圈
-    layer2 = getKingMoves(layer1, myAmazons);
-    d2 = cntBit(layer2 & myAmazons);
-    //  三圈
-    layer3 = getKingMoves(layer2, layer1 | myAmazons);
-    d3 = cntBit(layer3 & myAmazons);
-    // 对方：
-    //  一圈
-    layer1 = getKingMoves(opAmazons, 0);
-    d1 -= cntBit(layer1 & opAmazons);
-    //  二圈
-    layer2 = getKingMoves(layer1, opAmazons);
-    d2 -= cntBit(layer2 & opAmazons);
-    //  三圈
-    layer3 = getKingMoves(layer2, layer1 | opAmazons);
-    d3 -= cntBit(layer3 & opAmazons);
-    // 计算协同分
-    int diffSynergy = DIST_1_FACTOR * d1 + DIST_2_FACTOR * d2 + DIST_3_FACTOR * d3;
-    // int mySynergy = DIST_1_FACTOR * myD1 + DIST_2_FACTOR * myD2 + DIST_3_FACTOR * myD3;
-    // int opSynergy = DIST_1_FACTOR * opD1 + DIST_2_FACTOR * opD2 + DIST_3_FACTOR * opD3;
-
     // 动态权重，平滑插值
     int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;  // 局面进度
     phase = std::clamp(phase, 0, PHASE_SCALE);                               // 夹挤，防止外推
     int w_mob = lerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
     int w_ter = lerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
-    int w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
-    int w_syn = lerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
+    int w_pst = 0;
+    int w_syn = 0;
+
+    // 中后局不生效
+    int diffPST = 0;
+    int diffSynergy = 0;
+    if (emptyCnt > MID2ENDGAME_PIECES) {
+        // PST位置分数
+        diffPST = evaluatePST(myAmazons) - evaluatePST(opAmazons);
+        // int myPSTScore = evaluatePST(myAmazons);
+        // int opPSTScore = evaluatePST(opAmazons);
+
+        // 协同模型
+        // 切比雪夫距离——串行计算，遂放弃
+        // 形态学膨胀——并行计算
+        Bitmap layer1, layer2, layer3;
+        int d1, d2, d3;
+        // 己方：
+        //  一圈
+        layer1 = getKingMoves(myAmazons, 0);
+        d1 = cntBit(layer1 & myAmazons);
+        //  二圈
+        layer2 = getKingMoves(layer1, myAmazons);
+        d2 = cntBit(layer2 & myAmazons);
+        //  三圈
+        layer3 = getKingMoves(layer2, layer1 | myAmazons);
+        d3 = cntBit(layer3 & myAmazons);
+        // 对方：
+        //  一圈
+        layer1 = getKingMoves(opAmazons, 0);
+        d1 -= cntBit(layer1 & opAmazons);
+        //  二圈
+        layer2 = getKingMoves(layer1, opAmazons);
+        d2 -= cntBit(layer2 & opAmazons);
+        //  三圈
+        layer3 = getKingMoves(layer2, layer1 | opAmazons);
+        d3 -= cntBit(layer3 & opAmazons);
+        // 计算协同分
+        diffSynergy = DIST_1_FACTOR * d1 + DIST_2_FACTOR * d2 + DIST_3_FACTOR * d3;
+        // int mySynergy = DIST_1_FACTOR * myD1 + DIST_2_FACTOR * myD2 + DIST_3_FACTOR * myD3;
+        // int opSynergy = DIST_1_FACTOR * opD1 + DIST_2_FACTOR * opD2 + DIST_3_FACTOR * opD3;
+
+        // 动态权重
+        w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
+        w_syn = lerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
+    }
 
     // 计算总分
     // clang-format off

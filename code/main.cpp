@@ -33,7 +33,7 @@ int main() {
     IOEngine::readInputAndRecover(board);
 
 #ifdef DEBUG
-    switchToBoard(0, board);
+    switchToBoard(3, board);
 #endif
 #ifdef LOGGER_ON
     Logger::showBitboard(board);
