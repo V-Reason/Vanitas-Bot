@@ -18,7 +18,7 @@ using Ply = uint8_t;    // ply
 // int32_t的取值范围是-2147483648~2147483647
 constexpr Score SCORE_INFINITY = 1000000;            //  手动制定，防溢出
 constexpr Score SCORE_MATE = SCORE_INFINITY - 1000;  //  用于杀棋的深度惩罚，比如MATA+-(depth * K)
-constexpr Score SCORE_WIN = SCORE_MATE - 1000;       //  必胜解的最低分数
+constexpr Score SCORE_MATE_LOW = SCORE_MATE - 200;   //  必胜解的最低分数（SCORE_MATE - MAX_PLY）
 
 // 节点评估标志
 enum class NodeFlag : uint8_t {

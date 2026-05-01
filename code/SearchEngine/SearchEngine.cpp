@@ -394,7 +394,7 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
             globalBestMove = ttData.bestMove;
 
         // 搜到了必胜解
-        if (score >= TTable::SCORE_WIN)
+        if (score >= TTable::SCORE_MATE_LOW)
             break;
     }
 
@@ -593,12 +593,19 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 #ifdef MONITOR
         ++stats.ttHits;
 #endif
+        // 使用ply进行顽强抵抗
+        TTable::Score ttScore = ttData.score;
+        if (ttScore > TTable::SCORE_MATE_LOW)
+            ttScore -= ply;
+        else if (ttScore < -TTable::SCORE_MATE_LOW)
+            ttScore += ply;
+
         // 尝试剪枝
         if (ttData.flag == TTable::NodeFlag::EXACT)
-            return ttData.score;
-        if (ttData.flag == TTable::NodeFlag::LOWER_BOUND && ttData.score >= beta)
+            return ttScore;
+        if (ttData.flag == TTable::NodeFlag::LOWER_BOUND && ttScore >= beta)
             return beta;
-        if (ttData.flag == TTable::NodeFlag::UPPER_BOUND && ttData.score <= alpha)
+        if (ttData.flag == TTable::NodeFlag::UPPER_BOUND && ttScore <= alpha)
             return alpha;
         // stat_tt_hits--;
 #ifdef MONITOR
@@ -874,13 +881,20 @@ TTable::Score PVS(BitEngine::BitBoard& board,
         return -TTable::SCORE_MATE + ply;
     }
 
+    // 抹除ply对tt表的影响
+    TTable::Score writeScore = bestScore;
+    if (writeScore > TTable::SCORE_MATE_LOW)
+        writeScore += ply;
+    else if (writeScore < -TTable::SCORE_MATE_LOW)
+        writeScore -= ply;
+
     // 写入TTable置换表
     TTable::NodeFlag flag = TTable::NodeFlag::EXACT;
     if (bestScore <= oriAlpha)
         flag = TTable::NodeFlag::UPPER_BOUND;  // Fail-Low
     else if (bestScore >= beta)
         flag = TTable::NodeFlag::LOWER_BOUND;
-    TTable::write({currHash, bestMove, bestScore, depth, flag});  // Fail-High
+    TTable::write({currHash, bestMove, writeScore, depth, flag});  // Fail-High
 
     // 返回最优解
     return bestScore;
