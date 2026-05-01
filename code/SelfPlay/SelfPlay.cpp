@@ -7,15 +7,27 @@
 #include "../Utilities/Logger/Logger.h"
 #include "../Utilities/Timer/Timer.h"
 
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <array>
 #include <chrono>
 #include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <sstream>
 #include <string>
 #include <vector>
+
+// 可执行程序路径（全局变量）
+const std::string EXECUTABLE_PATH = "./main";
 
 namespace VanitasBot::SearchEngine {
 extern BitEngine::Move KTable[MAX_PLY][KILLER_NUM];
@@ -23,6 +35,149 @@ extern MoveWeight HTable[BitEngine::AMAZON_BOARD_SQUARE][BitEngine::AMAZON_BOARD
                         [BitEngine::AMAZON_BOARD_SQUARE];
 extern BitEngine::MoveList moveListPool[MAX_PLY];
 extern MoveWeight moveWeightPool[MAX_PLY][BitEngine::MAX_AMAZON_MOVE_TYPE];
+
+// 通过子进程调用可执行程序获取走法
+BitEngine::Move callExecutable(const BitEngine::BitBoard& board,
+                               int turnID,
+                               const std::vector<BitEngine::Move>& history) {
+    /* 清理全局数据结构，确保每次搜索都是干净的
+    memset(VanitasBot::TTable::TTable, 0, sizeof(VanitasBot::TTable::TTable));
+    memset(VanitasBot::SearchEngine::KTable, 0, sizeof(VanitasBot::SearchEngine::KTable));
+    memset(VanitasBot::SearchEngine::HTable, 0, sizeof(VanitasBot::SearchEngine::HTable));
+    memset(
+        VanitasBot::SearchEngine::moveListPool, 0, sizeof(VanitasBot::SearchEngine::moveListPool));
+    memset(VanitasBot::SearchEngine::moveWeightPool,
+           0,
+           sizeof(VanitasBot::SearchEngine::moveWeightPool));*/
+
+    // 创建临时文件
+    std::string temp_filename = "/tmp/amazon_input_" + std::to_string(getpid()) + ".txt";
+    std::ofstream temp_file(temp_filename);
+
+    if (!temp_file.is_open()) {
+        std::cerr << "无法创建临时文件" << std::endl;
+        return 0;
+    }
+
+    // 写入回合数
+    temp_file << turnID << "\n";
+
+    // 写入历史走法
+    // 黑方走棋时，会有一行-1
+    if (board.player == BitEngine::Player::BLACK) {
+        temp_file << "-1 -1 -1 -1 -1 -1\n";
+    }
+
+    for (const auto& move : history) {
+        int fromX, fromY, toX, toY, arrowX, arrowY;
+        BitEngine::indexToXY(BitEngine::getFrom(move), fromX, fromY);
+        BitEngine::indexToXY(BitEngine::getTo(move), toX, toY);
+        BitEngine::indexToXY(BitEngine::getArrow(move), arrowX, arrowY);
+
+        temp_file << fromX << " " << fromY << " " << toX << " " << toY << " " << arrowX << " "
+                  << arrowY << "\n";
+    }
+
+    temp_file.close();
+    // 确保文件内容写入磁盘
+    fsync(fileno(fopen(temp_filename.c_str(), "r")));
+
+    // 调试输出
+    std::cerr << "[DEBUG] turnID=" << turnID
+              << ", player=" << (board.player == BitEngine::Player::BLACK ? "BLACK" : "WHITE")
+              << ", history.size()=" << history.size() << std::endl;
+    std::cerr << "[DEBUG] Writing to: " << temp_filename << std::endl;
+
+    // 验证写入的内容
+    std::ifstream verify_file(temp_filename);
+    std::string line;
+    int line_num = 0;
+    while (std::getline(verify_file, line) && line_num < 5) {
+        std::cerr << "[DEBUG] Line " << line_num << ": " << line << std::endl;
+        line_num++;
+    }
+
+    // 创建管道读取输出
+    int pipe_out[2];
+    pid_t pid;
+
+    if (pipe(pipe_out) == -1) {
+        std::cerr << "管道创建失败" << std::endl;
+        remove(temp_filename.c_str());
+        return 0;
+    }
+
+    pid = fork();
+    if (pid == -1) {
+        std::cerr << "进程创建失败" << std::endl;
+        close(pipe_out[0]);
+        close(pipe_out[1]);
+        remove(temp_filename.c_str());
+        return 0;
+    }
+
+    if (pid == 0) {
+        close(pipe_out[0]);
+
+        // 重定向标准输入到临时文件
+        int fd = open(temp_filename.c_str(), O_RDONLY);
+        if (fd == -1) {
+            _exit(1);
+        }
+        dup2(fd, STDIN_FILENO);
+        close(fd);
+
+        // 重定向标准输出到管道
+        dup2(pipe_out[1], STDOUT_FILENO);
+        close(pipe_out[1]);
+
+        execl(EXECUTABLE_PATH.c_str(), EXECUTABLE_PATH.c_str(), nullptr);
+
+        _exit(1);
+    } else {
+        close(pipe_out[1]);
+
+        char buffer[256];
+        std::string output;
+        ssize_t bytes_read;
+
+        while ((bytes_read = read(pipe_out[0], buffer, sizeof(buffer) - 1)) > 0) {
+            buffer[bytes_read] = '\0';
+            output += buffer;
+        }
+        close(pipe_out[0]);
+
+        int status;
+        waitpid(pid, &status, 0);
+
+        // 删除临时文件
+        remove(temp_filename.c_str());
+        // ===================== 调试打印 =====================
+        std::cerr << "[DEBUG] 子进程输出内容: [" << output << "]" << std::endl;
+        std::cerr << "[DEBUG] 子进程退出状态: " << WEXITSTATUS(status) << std::endl;
+        std::cerr << "[DEBUG] 输出长度: " << output.size() << std::endl;
+        // ====================================================
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            std::istringstream iss(output);
+            std::string line;
+            int fromX, fromY, toX, toY, arrowX, arrowY;
+
+            // 逐行查找包含6个数字的行
+            while (std::getline(iss, line)) {
+                std::istringstream line_iss(line);
+                if (line_iss >> fromX >> fromY >> toX >> toY >> arrowX >> arrowY) {
+                    // 解析成功，直接返回
+                    return BitEngine::makeMove(BitEngine::XYToIndex(fromX, fromY),
+                                               BitEngine::XYToIndex(toX, toY),
+                                               BitEngine::XYToIndex(arrowX, arrowY));
+                }
+            }
+        }
+        // 所有解析都失败，才返回0
+        return 0;
+    }
+}
+
 ;
 // 将Move转换为字符串表示
 std::string moveToString(BitEngine::Move move) {
@@ -113,7 +268,7 @@ class SelfPlayManager {
 
    public:
     explicit SelfPlayManager(const SelfPlayConfig& config = SelfPlayConfig{})
-        : config_(config), rng_(std::time(nullptr)), move_picker_(0, 100) {}
+        : config_(config), rng_(123456789), move_picker_(0, 100) {}
 
     // 从文件读取特定局面
     bool loadCustomBoard(const std::string& filename) {
@@ -248,16 +403,20 @@ class SelfPlayManager {
     }*/
 
     // 获取用户输入的走法
-    BitEngine::Move getUserMove(const BitEngine::BitBoard& board) {
+    BitEngine::Move getUserMove(const BitEngine::BitBoard& board,
+                                const std::vector<BitEngine::Move>& move_history) {
         std::string input;
         std::cout << "请输入走法 (格式: 00-11-22) 或 'ai' 让AI自动走: ";
         std::cin >> input;
 
         if (input == "ai" || input == "AI") {
-            // 让AI搜索走法
+            // 让AI搜索走法 - 通过调用可执行程序
             std::cout << "AI正在思考..." << std::endl;
-            BitEngine::BitBoard temp_board_for_search = board;
-            return VanitasBot::SearchEngine::search(temp_board_for_search);
+
+            // 计算当前回合数
+            int turnID = move_history.size() + 1;
+
+            return callExecutable(board, turnID, move_history);
         }
 
         // 解析用户输入的走法
@@ -274,7 +433,7 @@ class SelfPlayManager {
         }
 
         std::cout << "非法走法！请重新输入。" << std::endl;
-        return getUserMove(board);  // 递归重新输入
+        return getUserMove(board, move_history);  // 递归重新输入
     }
 
     // 生成初始棋盘
@@ -291,9 +450,11 @@ class SelfPlayManager {
     }
 
     // 随机选择开局走法
-    void applyRandomOpening(BitEngine::BitBoard& board, int num_moves) {
+    std::vector<BitEngine::Move> applyRandomOpening(BitEngine::BitBoard& board, int num_moves) {
+        std::vector<BitEngine::Move> opening_moves;
+
         if (!config_.enable_random_opening || num_moves <= 0)
-            return;
+            return opening_moves;
 
         for (int i = 0; i < num_moves; ++i) {
             BitEngine::MoveList move_list;
@@ -314,37 +475,35 @@ class SelfPlayManager {
 
             // 应用走法
             BitEngine::applyMove(board, selected_move);
+            opening_moves.push_back(selected_move);  // 记录开局走法
 
             // 切换玩家
             // board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
-            //                                                          : BitEngine::Player::BLACK;
+            //                                                         : BitEngine::Player::BLACK;
         }
+
+        return opening_moves;
     }
 
     // 交互式单局游戏（逐步控制）
     void interactiveGame() {
-        // 必要的初始化步骤
-        Utilities::Timer::resetStartTime();
-        IOEngine::initIOEngine();
         BitEngine::BitBoard board = generateInitialBoard();
-
-        // 如果不是自定义局面，则应用随机开局
-        if (!config_.use_custom_board) {
-            applyRandomOpening(board, config_.random_opening_moves);
-        }
 
         std::cout << "=== 逐步控制模式开始 ===" << std::endl;
         VanitasBot::Utilities::Logger::showBitboard(board, "当前棋盘状态");
 
         int step_count = 0;
+        std::vector<BitEngine::Move> move_history;  // 记录走法历史
+
+        // 如果不是自定义局面，则应用随机开局
+        if (!config_.use_custom_board) {
+            std::vector<BitEngine::Move> opening_moves
+                = applyRandomOpening(board, config_.random_opening_moves);
+            move_history.insert(move_history.end(), opening_moves.begin(), opening_moves.end());
+            step_count = opening_moves.size();
+        }
 
         while (true) {
-            // 检查是否超时
-            if (Utilities::Timer::checkTimeouts()) {
-                std::cout << "超时！游戏结束。" << std::endl;
-                break;
-            }
-
             // 生成所有合法走法
             BitEngine::MoveList move_list;
             BitEngine::generateAllMoves(board, move_list);
@@ -370,7 +529,7 @@ class SelfPlayManager {
 
             if (config_.step_by_step) {
                 // 逐步控制模式
-                BitEngine::Move chosen_move = getUserMove(board);
+                BitEngine::Move chosen_move = getUserMove(board, move_history);
 
                 if (chosen_move == 0) {
                     std::cout << "无法获取有效走法，退出游戏。" << std::endl;
@@ -379,31 +538,26 @@ class SelfPlayManager {
 
                 // 应用走法
                 BitEngine::applyMove(board, chosen_move);
+                move_history.push_back(chosen_move);  // 记录走法
 
                 std::cout << "走法: " << moveToString(chosen_move) << std::endl;
             } else {
-                // AI自动模式
-                // 设置时间限制
-                Utilities::Timer::timeoutConfigs[0].timeoutMs = config_.time_per_move_ms;
+                // AI自动模式 - 通过调用可执行程序获取走法
+                int turnID = step_count;
+                BitEngine::Move best_move = callExecutable(board, turnID, move_history);
 
-                // 使用搜索函数获取最佳走法
-                BitEngine::BitBoard temp_board = board;
-                BitEngine::Move best_move = VanitasBot::SearchEngine::search(temp_board);
-
-                // 如果搜索失败或超时，随机选择一个走法
+                // 如果调用失败，随机选择一个走法
                 if (best_move == 0 && !legal_moves.empty()) {
-                    best_move = legal_moves[0];  // 选择第一个走法作为备选
+                    std::uniform_int_distribution<> move_dist(0, legal_moves.size() - 1);
+                    best_move = legal_moves[move_dist(rng_)];
                 }
 
                 // 应用走法
                 BitEngine::applyMove(board, best_move);
+                move_history.push_back(best_move);  // 记录走法
 
                 std::cout << "AI走法: " << moveToString(best_move) << std::endl;
             }
-
-            // 切换玩家
-            // board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
-            //                                                         : BitEngine::Player::BLACK;
 
             // 显示更新后的棋盘
             VanitasBot::Utilities::Logger::showBitboard(board, "当前棋盘状态");
@@ -434,35 +588,35 @@ class SelfPlayManager {
     };
 
     GameResult playSingleGame() {
-        // 必要的初始化步骤
-        Utilities::Timer::resetStartTime();
         // 清理全局状态，确保每局开始时是干净的
-        VanitasBot::SearchEngine::isTimeout_final = false;
         memset(VanitasBot::TTable::TTable, 0, sizeof(VanitasBot::TTable::TTable));
         memset(VanitasBot::SearchEngine::KTable, 0, sizeof(VanitasBot::SearchEngine::KTable));
         memset(VanitasBot::SearchEngine::HTable, 0, sizeof(VanitasBot::SearchEngine::HTable));
-        // 清空走法列表池
         memset(VanitasBot::SearchEngine::moveListPool,
                0,
                sizeof(VanitasBot::SearchEngine::moveListPool));
-
-        // 清空走法权重池
         memset(VanitasBot::SearchEngine::moveWeightPool,
                0,
                sizeof(VanitasBot::SearchEngine::moveWeightPool));
         HashEngine::init();
-        BitEngine::BitBoard board = generateInitialBoard();
+        Utilities::Timer::resetStartTime();
+        VanitasBot::SearchEngine::isTimeout_final = false;
 
-        // 如果不是自定义局面，则应用随机开局
-        if (!config_.use_custom_board) {
-            applyRandomOpening(board, config_.random_opening_moves);
-        }
+        BitEngine::BitBoard board = generateInitialBoard();
 
         GameResult result;
         result.winner = BitEngine::Player::BLACK;  // 默认设为BLACK，稍后根据情况更新
         result.game_interrupted = true;            // 默认设为中断状态，稍后更新
         result.game_length = 0;
         result.is_draw = false;
+
+        // 如果不是自定义局面，则应用随机开局
+        if (!config_.use_custom_board) {
+            std::vector<BitEngine::Move> opening_moves
+                = applyRandomOpening(board, config_.random_opening_moves);
+            result.moves.insert(result.moves.end(), opening_moves.begin(), opening_moves.end());
+            result.game_length = opening_moves.size();
+        }
 
         // 游戏主循环
         while (true) {
@@ -486,34 +640,24 @@ class SelfPlayManager {
                 break;
             }
 
-            // 设置时间限制
-            Utilities::Timer::timeoutConfigs[0].timeoutMs = config_.time_per_move_ms;
-
-            // 使用搜索函数获取最佳走法
-            BitEngine::BitBoard temp_board_for_search = board;
-            BitEngine::Move best_move = VanitasBot::SearchEngine::search(temp_board_for_search);
-
-            // 如果搜索失败或超时，随机选择一个走法
-            if (best_move == 0 && !legal_moves.empty()) {
-                // 尝试评估每个走法并选择最好的
-                BitEngine::Move best_alternative = legal_moves[0];
-                int best_score = INT_MIN;
-
-                for (const auto& move : legal_moves) {
-                    // 创建临时棋盘以评估走法
-                    BitEngine::BitBoard test_board = board;
-                    BitEngine::applyMove(test_board, move);
-
-                    // 使用评估函数来评分
-                    int score = VanitasBot::SearchEngine::evaluate(test_board);
-
-                    if (score > best_score) {
-                        best_score = score;
-                        best_alternative = move;
-                    }
-                }
-                best_move = best_alternative;
+            // 计算当前回合数
+            int turnID;
+            if (result.game_length % 2 == 0) {
+                // 黑方走棋
+                turnID = result.game_length / 2 + 1;
+            } else {
+                // 白方走棋
+                turnID = (result.game_length + 1) / 2;
             }
+
+            // 通过调用可执行程序获取最佳走法，传入历史走法
+            BitEngine::Move best_move = callExecutable(board, turnID, result.moves);
+
+            /* 如果调用失败，随机选择一个走法
+            if (best_move == 0 && !legal_moves.empty()) {
+                std::uniform_int_distribution<> move_dist(0, legal_moves.size() - 1);
+                best_move = legal_moves[move_dist(rng_)];
+            }*/
 
             // 记录走法
             result.moves.push_back(best_move);
@@ -521,10 +665,6 @@ class SelfPlayManager {
 
             // 应用走法
             BitEngine::applyMove(board, best_move);
-
-            // 切换玩家
-            // board.player = (board.player == BitEngine::Player::BLACK) ? BitEngine::Player::WHITE
-            //                                                         : BitEngine::Player::BLACK;
 
             // 检查是否达到最大步数（平局条件）
             if (result.game_length >= 500) {  // 设定最大步数限制
@@ -534,40 +674,11 @@ class SelfPlayManager {
             }
         }
 
-        // 清理全局状态，避免影响下一局游戏
-        // 1. 清理TTable（置换表）
-        memset(VanitasBot::TTable::TTable, 0, sizeof(VanitasBot::TTable::TTable));
-
-        // 清空杀手表
-        memset(VanitasBot::SearchEngine::KTable, 0, sizeof(VanitasBot::SearchEngine::KTable));
-
-        // 清空历史表
-        memset(VanitasBot::SearchEngine::HTable, 0, sizeof(VanitasBot::SearchEngine::HTable));
-
-        // 清空走法列表池
-        memset(VanitasBot::SearchEngine::moveListPool,
-               0,
-               sizeof(VanitasBot::SearchEngine::moveListPool));
-
-        // 清空走法权重池
-        memset(VanitasBot::SearchEngine::moveWeightPool,
-               0,
-               sizeof(VanitasBot::SearchEngine::moveWeightPool));
-
-        // 2. 重置HashEngine
-        HashEngine::init();
-
-        // 3. 重置其他全局状态
-        Utilities::Timer::resetStartTime();
-        VanitasBot::SearchEngine::isTimeout_final = false;
         return result;
     }
 
     // 运行多局自博弈
     void runSelfPlay() {
-        // 必要的初始化步骤
-        Utilities::Timer::resetStartTime();
-        IOEngine::initIOEngine();
         // 如果指定了输入文件，尝试加载
         if (!config_.input_file.empty()) {
             loadCustomBoard(config_.input_file);
@@ -702,8 +813,16 @@ void runSelfPlayGames(int game_count = 100, int time_per_move_ms = 1000) {
 
 #ifdef SELF_PLAY_MAIN
 int main() {
+    // 检查可执行程序是否存在
+    if (access(EXECUTABLE_PATH.c_str(), X_OK) != 0) {
+        std::cerr << "错误：找不到可执行程序 " << EXECUTABLE_PATH << std::endl;
+        std::cerr << "请先编译 main.cpp 生成可执行程序" << std::endl;
+        return 1;
+    }
+
     std::cout << "VanitasBot 自博弈系统" << std::endl;
     std::cout << "======================" << std::endl;
+    std::cout << "使用可执行程序: " << EXECUTABLE_PATH << std::endl;
     std::cout << "请选择测试模式：" << std::endl;
     std::cout << "1. 快速测试 (2局, 1000ms/步, 0步随机开局)" << std::endl;
     std::cout << "2. 标准测试 (5局, 1000ms/步, 1步随机开局)" << std::endl;
@@ -749,12 +868,12 @@ int main() {
             std::cout << "\n模式: 深度测试" << std::endl;
             break;
         case 4:
-            config.game_count = 2;
-            config.time_per_move_ms = 1000;
+            config.game_count = 3;
+            config.time_per_move_ms = 980;
             config.enable_random_opening = false;
             config.random_opening_moves = 0;
             config.step_by_step = false;
-            config.output_file = "test_no_random.txt";
+            config.output_file = "test_no_random_copy.txt";
             std::cout << "\n模式: 无随机开局测试" << std::endl;
             break;
         case 5:

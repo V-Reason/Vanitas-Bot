@@ -65,6 +65,7 @@ inline void outputAnswer(BitEngine::Move chosenMove) {
     BitEngine::indexToXY(BitEngine::getArrow(chosenMove), arrowX, arrowY);
 
     printf("%d %d %d %d %d %d\n", fromX, fromY, toX, toY, arrowX, arrowY);
+    fflush(stdout);
 }
 
 // class IOEngine {
