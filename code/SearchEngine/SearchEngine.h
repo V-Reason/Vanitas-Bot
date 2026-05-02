@@ -143,17 +143,18 @@ constexpr int ABSOLUTE_DOMAIN_FACTOR = 1000;                  // 绝对领域
 constexpr int MELEE_W_MOB = 0; /*50;*/                        // 混战_机动
 constexpr int MELEE_W_TER = ABSOLUTE_DOMAIN_FACTOR; /*800;*/  // 混战_领地
 
-constexpr int TRAPPED_PENALTY = 1000;  // 皇后限位惩罚
+constexpr int TRAPPED_PIECES = 3;      // 皇后限位阈值
+constexpr int TRAPPED_PENALTY = 2000;  // 皇后限位惩罚
 
 constexpr int DIST_1_FACTOR = -600;  // dist 1 惩罚
 constexpr int DIST_2_FACTOR = -200;  // dist 2 排斥
 constexpr int DIST_3_FACTOR = 400;   // dist 3 奖励
 // constexpr int DIST_4_FACTOR = 150;   // dist 4 吸引
 
-constexpr int W_MOB_A = 800, W_MOB_B = 300, K_FLX = 4;  // 机动性
+constexpr int W_MOB_A = 800, W_MOB_B = 300, K_FLX = 5;  // 机动性
 constexpr int W_TER_A = 400, W_TER_B = 1000;            // 领地
 constexpr int W_PST_A = 30, W_PST_B = 0;                // 位置
-constexpr int W_SYN_A = 30, W_SYN_B = 0;                // 协同
+constexpr int W_SYN_A = 4, W_SYN_B = 0;                 // 协同
 
 // 量纲对齐原始分参考
 // 机动：4*(15~25) => 60~100

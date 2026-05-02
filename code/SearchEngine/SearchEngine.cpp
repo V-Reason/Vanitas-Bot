@@ -1,6 +1,6 @@
-#define DEBUG
-#define MONITOR
-#define MONITOR_MEM
+// #define DEBUG
+// #define MONITOR
+// #define MONITOR_MEM
 // #define MONITOR_LITE
 
 #include "SearchEngine.h"
@@ -939,8 +939,8 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
         // Index idx = fnlBit(me);
         Bitmap moves = generateQueenMoves(makeMask(fnlBit(me)), allBlocked);
         int mob = cntBit(moves);
-        if (mob <= 1)
-            myTrappedPenalty += TRAPPED_PENALTY;
+        if (mob <= TRAPPED_PIECES)
+            myTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
         myReach |= moves;
         mySumMob += mob;
         kicBit(me);
@@ -951,8 +951,8 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
         // Index idx = fnlBit(op);
         Bitmap moves = generateQueenMoves(makeMask(fnlBit(op)), allBlocked);
         int mob = cntBit(moves);
-        if (mob <= 1)
-            opTrappedPenalty += TRAPPED_PENALTY;
+        if (mob <= TRAPPED_PIECES)
+            opTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
         opReach |= moves;
         opSumMob += mob;
         kicBit(op);
@@ -981,13 +981,13 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
     // 代偿，用于量纲对齐，避免和全量差太多
     // int w_mob_ter_merge = w_mob + (w_ter);       // 假设正比
     // int w_pst_syn_merge = w_pst - (w_syn >> 1);  // 假设反比
-    int w_ter_lite = (w_ter * 8) / 10;
+    // int w_ter_lite = (w_ter * 8) / 10;
 
     // 计算总分
     // clang-format off
     return w_mob * diffMobility
          + (w_mob / K_FLX) * diffFlexibility
-         + w_ter_lite * diffTerritory1
+         + w_ter * diffTerritory1
          + w_pst * diffPST
          + (opTrappedPenalty - myTrappedPenalty);
     // clang-format on
@@ -1033,8 +1033,8 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
         // Index idx = fnlBit(me);
         Bitmap moves = generateQueenMoves(makeMask(fnlBit(me)), allBlocked);
         int mob = cntBit(moves);
-        if (mob <= 1)
-            myTrappedPenalty += TRAPPED_PENALTY;
+        if (mob <= TRAPPED_PIECES)
+            myTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
         myReach |= moves;
         mySumMob += mob;
         kicBit(me);
@@ -1045,8 +1045,8 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
         // Index idx = fnlBit(op);
         Bitmap moves = generateQueenMoves(makeMask(fnlBit(op)), allBlocked);
         int mob = cntBit(moves);
-        if (mob <= 1)
-            opTrappedPenalty += TRAPPED_PENALTY;
+        if (mob <= TRAPPED_PIECES)
+            opTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
         opReach |= moves;
         opSumMob += mob;
         kicBit(op);

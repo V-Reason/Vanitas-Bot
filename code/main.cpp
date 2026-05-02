@@ -1,4 +1,5 @@
-#define DEBUG
+// #define DEBUG
+// #define CONSIS_TEST
 
 #pragma GCC optimize("O3,unroll-loops")
 #pragma GCC target("avx2,bmi,bmi2,popcnt,lzcnt")
@@ -16,11 +17,25 @@
 using namespace VanitasBot;
 using namespace VanitasBot::Utilities;
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(CONSIS_TEST)
 void switchToBoard(int which, BitEngine::BitBoard& board);
 #endif
 
 int main() {
+#ifdef CONSIS_TEST
+    BitEngine::BitBoard testBoard;
+    for (int i = 0; i <= 12; ++i) {
+        switchToBoard(i, testBoard);
+        // Logger::showBitboard(testBoard);
+        int full = SearchEngine::evaluate(testBoard);
+        int lite = SearchEngine::evaluateLite(testBoard);
+        std::cout << "----- " << i << " -----" << std::endl
+                  << "Full: " << full << "\t"
+                  << "Lite: " << lite << "\t"
+                  << "Delta: " << full - lite << std::endl;
+    }
+    return 0;
+#endif
 #ifdef DEBUG
     assert(false);  // release模式检测
     freopen("test_cases/test_beg.txt", "r", stdin);
@@ -32,8 +47,8 @@ int main() {
     IOEngine::initBoard(board);
     IOEngine::readInputAndRecover(board);
 
-#ifdef DEBUG
-    switchToBoard(3, board);
+#if defined(DEBUG) || defined(CONSIS_TEST)
+    switchToBoard(0, board);
 #endif
 #ifdef LOGGER_ON
     Logger::showBitboard(board);
@@ -52,7 +67,7 @@ int main() {
     return 0;
 }
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(CONSIS_TEST)
 void switchToBoard(int which, BitEngine::BitBoard& board) {
     switch (which) {
         case 0:
