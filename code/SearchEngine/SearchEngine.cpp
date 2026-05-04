@@ -903,99 +903,10 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
 // 轻量级评估函数（不用于残局）
 TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
-    // 监测探针
-#ifdef MONITOR
-    ++stats.evalsLite;
-#endif
-
-    using namespace BitEngine;
-    // 分辨敌我
-    Bitmap myAmazons, opAmazons;
-    if (board.player == Player::BLACK) {
-        myAmazons = board.blacks;
-        opAmazons = board.whites;
-    } else {
-        myAmazons = board.whites;
-        opAmazons = board.blacks;
-    }
-
-    // 缓存
-    Bitmap allBlocked = board.allBlocked();
-    int emptyCnt = cntBit(~allBlocked);
-
-    // 免除量纲测试的时候残局的影响
-#ifdef DEBUG
-    if (emptyCnt <= ENDGAME_PIECES)
-        return evaluateEndGame(board, ~allBlocked, allBlocked, myAmazons, opAmazons);
-#endif
-
-    // 皇后限位惩罚
-    int myTrappedPenalty = 0, opTrappedPenalty = 0;
-
-    // 机动性与火力厚度评估：
-    Bitmap myReach = 0, me = myAmazons;  // 全部皇后的覆盖面
-    int mySumMob = 0;                    // 火力厚度
-    while (me) {
-        // Index idx = fnlBit(me);
-        Bitmap moves = generateQueenMoves(makeMask(fnlBit(me)), allBlocked);
-        int mob = cntBit(moves);
-        if (mob <= TRAPPED_PIECES)
-            myTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
-        myReach |= moves;
-        mySumMob += mob;
-        kicBit(me);
-    }
-    Bitmap opReach = 0, op = opAmazons;
-    int opSumMob = 0;
-    while (op) {
-        // Index idx = fnlBit(op);
-        Bitmap moves = generateQueenMoves(makeMask(fnlBit(op)), allBlocked);
-        int mob = cntBit(moves);
-        if (mob <= TRAPPED_PIECES)
-            opTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
-        opReach |= moves;
-        opSumMob += mob;
-        kicBit(op);
-    }
-    // 量化
-    int diffMobility = cntBit(myReach) - cntBit(opReach);  // 活动度
-    int diffFlexibility = mySumMob - opSumMob;             // 韧度
-    // int myMobility = cntBit(myReach);
-    // int opMobility = cntBit(opReach);
-
-    // 一步领地分
-    int diffTerritory1 = cntBit(myReach & ~opReach) - cntBit(~myReach & opReach);
-
-    // PST位置分
-    int diffPST = evaluatePST(myAmazons) - evaluatePST(opAmazons);
-    // int myPSTScore = evaluatePST(myAmazons);
-    // int opPSTScore = evaluatePST(opAmazons);
-
-    // 动态权重，平滑插值
-    int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;  // 局面进度
-    phase = std::clamp(phase, 0, PHASE_SCALE);                               // 夹挤，防止外推
-    int w_mob = lerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
-    int w_ter = lerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
-    int w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
-    // int w_syn = lerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
-    // 代偿，用于量纲对齐，避免和全量差太多
-    // int w_mob_ter_merge = w_mob + (w_ter);       // 假设正比
-    // int w_pst_syn_merge = w_pst - (w_syn >> 1);  // 假设反比
-    // int w_ter_lite = (w_ter * 8) / 10;
-
-    // 计算总分
-    // clang-format off
-    return w_mob * diffMobility
-         + (w_mob / K_FLX) * diffFlexibility
-         + w_ter * diffTerritory1
-         + w_pst * diffPST
-         + (opTrappedPenalty - myTrappedPenalty);
-    // clang-format on
+    return evaluate(board);
 }
 
 TTable::Score evaluate(const BitEngine::BitBoard& board) {
-    // // 调试
-    // stat_nodes_evaluated++;
     // 监测探针
 #ifdef MONITOR
     ++stats.evals;
@@ -1023,133 +934,143 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
 
     // 普通局面
 
-    // 皇后限位惩罚
-    int myTrappedPenalty = 0, opTrappedPenalty = 0;
-
-    // 机动性与火力厚度评估：
-    Bitmap myReach = 0, me = myAmazons;  // 全部皇后的覆盖面
-    int mySumMob = 0;                    // 火力厚度
-    while (me) {
-        // Index idx = fnlBit(me);
-        Bitmap moves = generateQueenMoves(makeMask(fnlBit(me)), allBlocked);
-        int mob = cntBit(moves);
-        if (mob <= TRAPPED_PIECES)
-            myTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
-        myReach |= moves;
-        mySumMob += mob;
-        kicBit(me);
-    }
-    Bitmap opReach = 0, op = opAmazons;
-    int opSumMob = 0;
-    while (op) {
-        // Index idx = fnlBit(op);
-        Bitmap moves = generateQueenMoves(makeMask(fnlBit(op)), allBlocked);
-        int mob = cntBit(moves);
-        if (mob <= TRAPPED_PIECES)
-            opTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
-        opReach |= moves;
-        opSumMob += mob;
-        kicBit(op);
-    }
-    // 量化
-    int diffMobility = cntBit(myReach) - cntBit(opReach);  // 活动度
-    int diffFlexibility = mySumMob - opSumMob;             // 韧度
-    // int myMobility = cntBit(myReach);
-    // int opMobility = cntBit(opReach);
-
-    // 领地评估：
-    // 汇总能领先（第一步）到达的格子，再使用国王步进行一次膨胀，获得第二步能到达的范围
-    Bitmap myReach2 = myReach | getKingMoves(myReach, allBlocked);
-    Bitmap opReach2 = opReach | getKingMoves(opReach, allBlocked);
-    int diffTerritory2 = cntBit(myReach2 & ~opReach2) - cntBit(~myReach2 & opReach2);
-    // int myExclusive = cntBit(myReach & ~opReach);
-    // int opExclusive = cntBit(~myReach & opReach);
-
     // 动态权重，平滑插值
     int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;  // 局面进度
     phase = std::clamp(phase, 0, PHASE_SCALE);                               // 夹挤，防止外推
     int w_mob = lerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
     int w_ter = lerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
-    int w_pst = 0;
-    int w_syn = 0;
+    int w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
+    int w_syn = lerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
 
-    // 中后局不生效
-    int diffPST = 0;
-    int diffSynergy = 0;
-    if (emptyCnt > MID2ENDGAME_PIECES) {
-        // PST位置分数
-        diffPST = evaluatePST(myAmazons) - evaluatePST(opAmazons);
-        // int myPSTScore = evaluatePST(myAmazons);
-        // int opPSTScore = evaluatePST(opAmazons);
+    // 机动性评估
+    int myMobility = cntBit(getKingMoves(myAmazons, allBlocked));
+    int opMobility = cntBit(getKingMoves(opAmazons, allBlocked));
+    int diffMobility = myMobility - opMobility;
 
-        // 协同模型
-        // 切比雪夫距离——串行计算，遂放弃
-        // 形态学膨胀——并行计算
-        Bitmap layer1, layer2, layer3;
-        int d1, d2, d3;
-        // 己方：
-        //  一圈
-        layer1 = getKingMoves(myAmazons, 0);
-        d1 = cntBit(layer1 & myAmazons);
-        //  二圈
-        layer2 = getKingMoves(layer1, myAmazons);
-        d2 = cntBit(layer2 & myAmazons);
-        //  三圈
-        layer3 = getKingMoves(layer2, layer1 | myAmazons);
-        d3 = cntBit(layer3 & myAmazons);
-        // 对方：
-        //  一圈
-        layer1 = getKingMoves(opAmazons, 0);
-        d1 -= cntBit(layer1 & opAmazons);
-        //  二圈
-        layer2 = getKingMoves(layer1, opAmazons);
-        d2 -= cntBit(layer2 & opAmazons);
-        //  三圈
-        layer3 = getKingMoves(layer2, layer1 | opAmazons);
-        d3 -= cntBit(layer3 & opAmazons);
-        // 计算协同分
-        diffSynergy = DIST_1_FACTOR * d1 + DIST_2_FACTOR * d2 + DIST_3_FACTOR * d3;
-        // int mySynergy = DIST_1_FACTOR * myD1 + DIST_2_FACTOR * myD2 + DIST_3_FACTOR * myD3;
-        // int opSynergy = DIST_1_FACTOR * opD1 + DIST_2_FACTOR * opD2 + DIST_3_FACTOR * opD3;
+    // 走步
+    Bitmap myMoves[4], opMoves[4];
+    Bitmap myReach1 = 0, opReach1 = 0;
+    Bitmap myReach2, opReach2;
+    // 火力厚度
+    int myFireDepth = 0, opFireDepth = 0;
+    // 限位惩罚
+    int myTrappedPenalty = 0, opTrappedPenalty = 0;
 
-        // 动态权重
-        w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
-        w_syn = lerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
+    // 己方：
+    // 一级走步 与 火力厚度 与 限位惩罚 计算
+    int myCnt = 0;
+    Bitmap me = myAmazons;
+    while (me) {
+        Index idx = fnlBit(me);
+        Bitmap mask = makeMask(idx);
+        myMoves[myCnt] = generateQueenMoves(mask, allBlocked);
+
+        int mob = cntBit(getKingMoves(mask, allBlocked));
+        if (mob <= TRAPPED_PIECES)
+            myTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
+
+        myReach1 |= myMoves[myCnt];
+
+        int reach = cntBit(myMoves[myCnt]);
+        myFireDepth += reach;
+
+        kicBit(me);
+        ++myCnt;
     }
+    // 二级走步
+    myReach2 = generateQueenMoves(myReach1, allBlocked) & ~myReach1;
+
+    // 对方：
+    // 一级走步 与 火力厚度 与 限位惩罚 计算
+    int opCnt = 0;
+    Bitmap op = opAmazons;
+    while (op) {
+        Index idx = fnlBit(op);
+        Bitmap mask = makeMask(idx);
+        opMoves[opCnt] = generateQueenMoves(mask, allBlocked);
+
+        int mob = cntBit(getKingMoves(mask, allBlocked));
+        if (mob <= TRAPPED_PIECES)
+            opTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
+
+        opReach1 |= opMoves[opCnt];
+
+        int reach = cntBit(opMoves[opCnt]);
+        opFireDepth += reach;
+
+        kicBit(op);
+        ++opCnt;
+    }
+    // 二级走步
+    opReach2 = generateQueenMoves(opReach1, allBlocked) & ~opReach1;
+
+    // 一级领地
+    Bitmap myL1 = myReach1 & ~opReach1, opL1 = opReach1 & ~myReach1;
+    // 二级领地
+    Bitmap myL2 = myReach2 & ~opReach2, opL2 = opReach2 & ~myReach2;
+    // 量化
+    int diffL1 = cntBit(myL1) - cntBit(opL1);
+    int diffL2 = cntBit(myL2) - cntBit(opL2);
+    int diffTerritory = TER_L1 * diffL1 + TER_L2 * diffL2;
+    int diffFireDepth = myFireDepth - opFireDepth;
+    int diffTrappedPenalty = myTrappedPenalty - opTrappedPenalty;
+
+    // 废皇后数量
+    int myRedundant = 0, opRedundant = 0;
+    Bitmap myDangerZone = myReach1 | myAmazons;
+    Bitmap opDangerZone = opReach1 | opAmazons;
+    for (int i = 0; i < 4; ++i) {
+        if (!(myMoves[i] & opDangerZone))
+            ++myRedundant;
+        if (!(opMoves[i] & myDangerZone))
+            ++opRedundant;
+    }
+    int diffRedundant = myRedundant - opRedundant;
+
+    // PST位置分数
+    int diffPST = evaluatePST(myAmazons) - evaluatePST(opAmazons);
+
+    // 协同模型
+    // 切比雪夫距离——串行计算，遂放弃
+    // 形态学膨胀——并行计算
+    Bitmap layer1, layer2, layer3;
+    int d1, d2, d3;
+
+    // 己方：
+    //  一圈
+    layer1 = getKingMoves(myAmazons, 0);
+    d1 = cntBit(layer1 & myAmazons);
+    //  二圈
+    layer2 = getKingMoves(layer1, myAmazons);
+    d2 = cntBit(layer2 & myAmazons);
+    //  三圈
+    layer3 = getKingMoves(layer2, layer1 | myAmazons);
+    d3 = cntBit(layer3 & myAmazons);
+
+    // 对方：
+    //  一圈
+    layer1 = getKingMoves(opAmazons, 0);
+    d1 -= cntBit(layer1 & opAmazons);
+    //  二圈
+    layer2 = getKingMoves(layer1, opAmazons);
+    d2 -= cntBit(layer2 & opAmazons);
+    //  三圈
+    layer3 = getKingMoves(layer2, layer1 | opAmazons);
+    d3 -= cntBit(layer3 & opAmazons);
+
+    // 计算协同分
+    int diffSynergy = DIST_1_FACTOR * d1 + DIST_2_FACTOR * d2 + DIST_3_FACTOR * d3;
 
     // 计算总分
     // clang-format off
-    return w_mob * diffMobility
-         + (w_mob / K_FLX) * diffFlexibility
-         + w_ter * diffTerritory2
-         + w_pst * diffPST
-         + w_syn * diffSynergy
-         + (opTrappedPenalty - myTrappedPenalty);
+        return w_mob * diffMobility
+            + (w_mob / K_FLX) * diffFireDepth
+            + w_ter * diffTerritory
+            + w_pst * diffPST
+            + w_syn * diffSynergy
+            - diffTrappedPenalty
+            - W_REDUNDANT_PENALTY * diffRedundant;
     // clang-format on
-
-    // // 中局特化
-    // // 中心区域加分
-    // int myCenter = 0;
-    // int opCenter = 0;
-    // if (emptyCnt > MIDDLEGAME_PIECES) {
-    //     myCenter = cntBit(myReach & CENTER_MASK);
-    //     opCenter = cntBit(opReach & CENTER_MASK);
-    // }
-
-    // // 动态权重
-    // // 机动性逐渐贬值，领地逐渐升值
-    // int w_mob, w_ter;
-    // if (emptyCnt > 40) {
-    //     w_mob = W_MOB_A;
-    //     w_ter = W_TER_A;
-    // } else {
-    //     w_mob = W_MOB_B;
-    //     w_ter = W_TER_B;
-    // }
-
-    // // 计算总分
-    // return w_mob * (myMobility - opMobility) + w_ter * (myExclusive - opExclusive)
-    //        + CENTER_FACTOR * (myCenter - opCenter);
 }
 
 TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
@@ -1198,17 +1119,10 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
         // 注意：(!isMyRegion && !isOpRegion) 意味着无主之地，不在此记录
         if (isMyRegion && !isOpRegion) {  // 我的绝对领域
             myRegion |= region;
-            // score += ABSOLUTE_DOMAIN_FACTOR * regionSize;
         } else if (!isMyRegion && isOpRegion) {  // 她的绝对领域
             opRegion |= region;
-            // score -= ABSOLUTE_DOMAIN_FACTOR * regionSize;
         } else if (isMyRegion && isOpRegion) {  // 混战
             meleeRegion |= region;
-            // // TODO：没想好怎么设计
-            // // 机动性给简单的分
-            // int myMob = cntBit(getKingMoves(myAmazons) & region);
-            // int opMob = cntBit(getKingMoves(opAmazons) & region);
-            // score += MELEE_FACTOR * (myMob - opMob);
         }
     }  // end while
 
@@ -1217,37 +1131,27 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
 
     // 计算混战区分数
     if (meleeRegion != 0) {
-        // 机动性评估：
-        // 汇总一步能到达的所有格子
-        Bitmap myReach = 0, me = myAmazons;
-        while (me) {
-            // Index idx = fnlBit(me);
-            myReach |= generateQueenMoves(makeMask(fnlBit(me)), blocked);
-            kicBit(me);
-        }
-        Bitmap opReach = 0, op = opAmazons;
-        while (op) {
-            // Index idx = fnlBit(op);
-            opReach |= generateQueenMoves(makeMask(fnlBit(op)), blocked);
-            kicBit(op);
-        }
-        // 量化
-        int diffMobility = cntBit(myReach & meleeRegion) - cntBit(opReach & meleeRegion);
-        // int myMobility = cntBit(myReach & meleeRegion);
-        // int opMobility = cntBit(opReach & meleeRegion);
+        // 多级走步
+        Bitmap myReach = myAmazons, opReach = opAmazons;
+        int diffTerritory = 0;
+        int weight = 10;
+        Bitmap unreached = meleeRegion;
+        while ((myReach || opReach) && weight > 0) {
+            Bitmap myNext = generateQueenMoves(myReach, ~unreached);
+            Bitmap opNext = generateQueenMoves(opReach, ~unreached);
 
-        // 领地评估：
-        // 汇总能转化成绝对领域的格子
-        int diffExclusive
-            = cntBit(myReach & ~opReach & meleeRegion) - cntBit(~myReach & opReach & meleeRegion);
-        // int myExclusive = cntBit(myReach & ~opReach & meleeRegion);
-        // int opExclusive = cntBit(~myReach & opReach & meleeRegion);
+            Bitmap myControl = myNext & ~opNext;
+            Bitmap opControl = opNext & ~myNext;
 
-        // 混战分数
-        score += MELEE_W_MOB * diffMobility;
-        score += MELEE_W_TER * diffExclusive;
-        // score += MELEE_FACTOR * (myExclusive - opExclusive);
-        // score += MELEE_FACTOR_LOW * (myMobility - opMobility);
+            diffTerritory += weight * (cntBit(myControl) - cntBit(opControl));
+            weight -= 2;
+
+            unreached &= (myNext | opNext);
+            myReach = myControl;
+            opReach = opControl;
+        }
+
+        score += MELEE_W_TER * diffTerritory;
     }
 
     return score;

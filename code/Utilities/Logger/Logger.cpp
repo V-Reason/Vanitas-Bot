@@ -26,7 +26,9 @@ void Logger::showBitmap(const BitEngine::Bitmap& bitmap, const char* title) {
     std::cout << "------------------" << std::endl;
 }
 
-void Logger::showBitboard(const BitEngine::BitBoard& board, const char* title) {
+void Logger::showBitboard(const BitEngine::BitBoard& board,
+                          BitEngine::Bitmap highlight,
+                          const char* title) {
     std::cout << "=== " << title << " ===" << std::endl;
     std::cout << "  0 1 2 3 4 5 6 7  (x)" << std::endl;
     for (int y = 0; y < BitEngine::AMAZON_BOARD_LENGTH; ++y) {
@@ -35,8 +37,10 @@ void Logger::showBitboard(const BitEngine::BitBoard& board, const char* title) {
             BitEngine::Index index = BitEngine::XYToIndex(x, y);
             BitEngine::Bitmap mask = BitEngine::makeMask(index);
 
-            // 按优先级检查该位置是什么东西
-            if (board.blacks & mask) {
+            // 新增：如果该位在 highlight 位图中，优先显示“O”标记
+            if (highlight & mask) {
+                std::cout << FullCell;
+            } else if (board.blacks & mask) {
                 std::cout << BlackAmazon;  // B 代表黑棋 (Black)
             } else if (board.whites & mask) {
                 std::cout << WhiteAmazon;  // W 代表白棋 (White)

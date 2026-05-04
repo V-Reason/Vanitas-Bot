@@ -139,37 +139,25 @@ constexpr int PHASE_SCALE = 1 << 8;  // 256好算，和RGB差不多
 constexpr int PHASE_SPAN = BEGINGAME_PIECES - ENDGAME_PIECES;
 
 // 加分系数
-constexpr int ABSOLUTE_DOMAIN_FACTOR = 1000;                  // 绝对领域
-constexpr int MELEE_W_MOB = 0; /*50;*/                        // 混战_机动
-constexpr int MELEE_W_TER = ABSOLUTE_DOMAIN_FACTOR; /*800;*/  // 混战_领地
+constexpr int ABSOLUTE_DOMAIN_FACTOR = 2000;              // 绝对领域
+constexpr int MELEE_W_TER = ABSOLUTE_DOMAIN_FACTOR / 10;  // 混战_领地
 
-constexpr int TRAPPED_PIECES = 3;      // 皇后限位阈值
-constexpr int TRAPPED_PENALTY = 2000;  // 皇后限位惩罚
+constexpr int TRAPPED_PIECES = 2;      // 皇后限位阈值
+constexpr int TRAPPED_PENALTY = 1000;  // 皇后限位惩罚
+
+constexpr int W_REDUNDANT_PENALTY = 3000;  // 废皇后惩罚
 
 constexpr int DIST_1_FACTOR = -600;  // dist 1 惩罚
-constexpr int DIST_2_FACTOR = -200;  // dist 2 排斥
-constexpr int DIST_3_FACTOR = 400;   // dist 3 奖励
+constexpr int DIST_2_FACTOR = -100;  // dist 2 排斥
+constexpr int DIST_3_FACTOR = 300;   // dist 3 奖励
 // constexpr int DIST_4_FACTOR = 150;   // dist 4 吸引
 
+constexpr int TER_L1 = 3, TER_L2 = 1, TER_L1_LITE = 3;  // 分级领地
+
 constexpr int W_MOB_A = 800, W_MOB_B = 300, K_FLX = 5;  // 机动性
-constexpr int W_TER_A = 400, W_TER_B = 1000;            // 领地
-constexpr int W_PST_A = 30, W_PST_B = 0;                // 位置
+constexpr int W_TER_A = 300, W_TER_B = 1000;            // 领地
+constexpr int W_PST_A = 20, W_PST_B = 0;                // 位置
 constexpr int W_SYN_A = 4, W_SYN_B = 0;                 // 协同
-
-// 量纲对齐原始分参考
-// 机动：4*(15~25) => 60~100
-// 领地：0~40
-// 位置：-80~120
-// 协同：4*(-120~160)
-
-// constexpr int CENTER_FACTOR = 20;                    // 中心点
-// constexpr int LITE_FACTOR
-//     = ((W_MOB_A + W_MOB_B) + (W_TER_A + W_TER_B) + (W_PST_A + W_PST_B)) / 2.5;  // Lite系数
-
-// // 中心掩码
-// constexpr BitEngine::Bitmap CENTER_MASK
-//     = (1ULL << 27) | (1ULL << 28) | (1ULL << 35) | (1ULL << 36);  //
-//     中心区域(3,3),(3,4),(4,3),(4,4)
 
 // // 全量衰减历史权重
 // inline void decayHTable() {
