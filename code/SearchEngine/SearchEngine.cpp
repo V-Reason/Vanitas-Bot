@@ -1,7 +1,7 @@
 // #define DEBUG
 // #define MONITOR
 // #define MONITOR_MEM
-// #define MONITOR_LITE
+#define MONITOR_LITE
 
 #include "SearchEngine.h"
 
@@ -321,13 +321,17 @@ class StateMachine {
 BitEngine::Move search(BitEngine::BitBoard& board) {
     // // 临时：每次进入主搜时，强行重置一次计时器起点
     // startTime = std::chrono::steady_clock::now();
-    // isTimeout_final = false;
+    isTimeout_final = false;
+#ifdef MONITOR_LITE
+    statsLite.nodes = 0;
+    statsLite.maxDepth = 0;
+#endif
 
     // 配置计时器
     Utilities::Timer::timeoutConfigs[0].isTimeOut = &isTimeout_final;
 
     // 重置计时器
-    // Utilities::Timer::resetStartTime();
+    Utilities::Timer::resetStartTime();
 
     // TODO: 开局库检查
 
@@ -558,6 +562,11 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
     // 毎若干搜索后检查一次超时
     static int nodesCnt = 0;
+#ifdef MONITOR_LITE
+    // 在根节点时重置
+    if (ply == 0)
+        nodesCnt = 0;
+#endif
     if (!(++nodesCnt & CHECK_GAP_MASK) && Utilities::Timer::checkTimeouts())
         return 0;
     if (isTimeout_final)

@@ -60,6 +60,7 @@ int main() {
     IOEngine::outputAnswer(chosenMove);
 
     BitEngine::applyMove(board, chosenMove);
+    printf("PassedTime: %d\n", Timer::getPassedTime());
 #ifdef LOGGER_ON
     Logger::showBitboard(board);
     printf("PassedTime: %d", Timer::getPassedTime());
