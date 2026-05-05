@@ -827,7 +827,7 @@ int main() {
     std::cout << "1. 快速测试 (2局, 1000ms/步, 0步随机开局)" << std::endl;
     std::cout << "2. 标准测试 (5局, 1000ms/步, 1步随机开局)" << std::endl;
     std::cout << "3. 深度测试 (3局, 3000ms/步, 2步随机开局)" << std::endl;
-    std::cout << "4. 无随机开局测试 (5局, 1000ms/步, 0步随机开局)" << std::endl;
+    std::cout << "4. 无随机开局测试 (3局, 980ms/步, 0步随机开局)" << std::endl;
     std::cout << "5. 逐步控制模式 (交互式)" << std::endl;
     std::cout << "6. 大规模测试 (20局, 1000ms/步, 1步随机开局)" << std::endl;
     std::cout << "7. 从文件输入自定义局面" << std::endl;
