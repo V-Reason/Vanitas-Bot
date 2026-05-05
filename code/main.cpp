@@ -59,8 +59,8 @@ int main() {
 
     IOEngine::outputAnswer(chosenMove);
 
-    BitEngine::applyMove(board, chosenMove);
 #ifdef LOGGER_ON
+    BitEngine::applyMove(board, chosenMove);
     Logger::showBitboard(board);
     printf("PassedTime: %d", Timer::getPassedTime());
 #endif
