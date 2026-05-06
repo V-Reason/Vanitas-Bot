@@ -954,26 +954,37 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     // 火力厚度
     int myFireDepth = 0, opFireDepth = 0;
     // 限位惩罚
-    int myTrappedPenalty = 0, opTrappedPenalty = 0;
+    int myTrappedTerPenalty = 0, opTrappedTerPenalty = 0;
+    int myTrappedDirPenalty = 0, opTrappedDirPenalty = 0;
 
     // 己方：
     // 一级走步 与 火力厚度 与 限位惩罚 计算
     int myCnt = 0;
     Bitmap me = myAmazons;
     while (me) {
+        // 准备
         Index idx = fnlBit(me);
         Bitmap mask = makeMask(idx);
         myMoves[myCnt] = generateQueenMoves(mask, allBlocked);
 
-        int mob = cntBit(getKingMoves(mask, allBlocked));
-        if (mob <= TRAPPED_PIECES)
-            myTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
+        // 领地限制惩罚
+        int ter = cntBit(myMoves[myCnt]);
+        if (ter <= TRAPPED_TER_PIECES)
+            myTrappedTerPenalty += TRAPPED_TER_PENALTY * (TRAPPED_TER_PIECES - ter + 1);
 
+        // 方向限制惩罚
+        int mob = cntBit(getKingMoves(mask, allBlocked));
+        if (mob <= TRAPPED_DIR_PIECES)
+            myTrappedDirPenalty += TRAPPED_DIR_PENALTY * (TRAPPED_DIR_PIECES - mob + 1);
+
+        // 一级走步积累
         myReach1 |= myMoves[myCnt];
 
+        // 活力厚度
         int reach = cntBit(myMoves[myCnt]);
         myFireDepth += reach;
 
+        // 循环量更新
         kicBit(me);
         ++myCnt;
     }
@@ -985,19 +996,29 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     int opCnt = 0;
     Bitmap op = opAmazons;
     while (op) {
+        // 准备
         Index idx = fnlBit(op);
         Bitmap mask = makeMask(idx);
         opMoves[opCnt] = generateQueenMoves(mask, allBlocked);
 
-        int mob = cntBit(getKingMoves(mask, allBlocked));
-        if (mob <= TRAPPED_PIECES)
-            opTrappedPenalty += TRAPPED_PENALTY * (TRAPPED_PIECES - mob);
+        // 领地限制惩罚
+        int ter = cntBit(opMoves[opCnt]);
+        if (ter <= TRAPPED_TER_PIECES)
+            opTrappedTerPenalty += TRAPPED_TER_PENALTY * (TRAPPED_TER_PIECES - ter + 1);
 
+        // 方向限制惩罚
+        int mob = cntBit(getKingMoves(mask, allBlocked));
+        if (mob <= TRAPPED_DIR_PIECES)
+            opTrappedDirPenalty += TRAPPED_DIR_PENALTY * (TRAPPED_DIR_PIECES - mob + 1);
+
+        // 一级走步积累
         opReach1 |= opMoves[opCnt];
 
+        // 活力厚度
         int reach = cntBit(opMoves[opCnt]);
         opFireDepth += reach;
 
+        // 循环量更新
         kicBit(op);
         ++opCnt;
     }
@@ -1012,13 +1033,17 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     int diffL1 = cntBit(myL1) - cntBit(opL1);
     int diffL2 = cntBit(myL2) - cntBit(opL2);
     int diffTerritory = TER_L1 * diffL1 + TER_L2 * diffL2;
+
     int diffFireDepth = myFireDepth - opFireDepth;
+
+    int myTrappedPenalty = myTrappedTerPenalty + myTrappedDirPenalty;
+    int opTrappedPenalty = opTrappedTerPenalty + opTrappedDirPenalty;
     int diffTrappedPenalty = myTrappedPenalty - opTrappedPenalty;
 
     // 废皇后数量
     int myRedundant = 0, opRedundant = 0;
-    Bitmap myDangerZone = myReach1 | myAmazons;
-    Bitmap opDangerZone = opReach1 | opAmazons;
+    Bitmap myDangerZone = myReach1 | myReach2 | myAmazons;
+    Bitmap opDangerZone = opReach1 | opReach2 | opAmazons;
     for (int i = 0; i < 4; ++i) {
         if (!(myMoves[i] & opDangerZone))
             ++myRedundant;
@@ -1131,25 +1156,10 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
 
     // 计算混战区分数
     if (meleeRegion != 0) {
-        // 多级走步
-        Bitmap myReach = myAmazons, opReach = opAmazons;
-        int diffTerritory = 0;
-        int weight = 10;
-        Bitmap unreached = meleeRegion;
-        while ((myReach || opReach) && weight > 0) {
-            Bitmap myNext = generateQueenMoves(myReach, ~unreached);
-            Bitmap opNext = generateQueenMoves(opReach, ~unreached);
+        Bitmap myReach1 = generateQueenMoves(myAmazons, blocked);
+        Bitmap opReach1 = generateQueenMoves(opAmazons, blocked);
 
-            Bitmap myControl = myNext & ~opNext;
-            Bitmap opControl = opNext & ~myNext;
-
-            diffTerritory += weight * (cntBit(myControl) - cntBit(opControl));
-            weight -= 2;
-
-            unreached &= (myNext | opNext);
-            myReach = myControl;
-            opReach = opControl;
-        }
+        int diffTerritory = (cntBit(myReach1) - cntBit(opReach1));
 
         score += MELEE_W_TER * diffTerritory;
     }

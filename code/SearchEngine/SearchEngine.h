@@ -56,7 +56,7 @@ constexpr int ASPIRATION_WINDOW = 10000;  // 宽度，容忍度
 // 超时标志
 extern bool isTimeout_final;
 // 最大深度
-constexpr int MAX_DEPTH = 100;  // 内存池保证不再爆栈，但没必要再往上了
+constexpr int MAX_DEPTH = 500;  // 内存池保证不再爆栈，但没必要再往上了
 // 最大PLY
 constexpr int MAX_PLY = 128;  // 理论上MAX_PLY不应该小于MAX_DEPTH，否则会导致内存池访问越界
 // 超时检查间隔
@@ -142,21 +142,23 @@ constexpr int PHASE_SPAN = BEGINGAME_PIECES - ENDGAME_PIECES;
 constexpr int ABSOLUTE_DOMAIN_FACTOR = 2000;              // 绝对领域
 constexpr int MELEE_W_TER = ABSOLUTE_DOMAIN_FACTOR / 10;  // 混战_领地
 
-constexpr int TRAPPED_PIECES = 2;      // 皇后限位阈值
-constexpr int TRAPPED_PENALTY = 1000;  // 皇后限位惩罚
+constexpr int TRAPPED_TER_PIECES = 5;      // 皇后限位(领地)阈值
+constexpr int TRAPPED_TER_PENALTY = 1000;  // 皇后限位(领地)惩罚
+constexpr int TRAPPED_DIR_PIECES = 3;      // 皇后限位(方向)阈值
+constexpr int TRAPPED_DIR_PENALTY = 1000;  // 皇后限位(方向)惩罚
 
 constexpr int W_REDUNDANT_PENALTY = 3000;  // 废皇后惩罚
 
 constexpr int DIST_1_FACTOR = -600;  // dist 1 惩罚
-constexpr int DIST_2_FACTOR = -100;  // dist 2 排斥
+constexpr int DIST_2_FACTOR = -300;  // dist 2 排斥
 constexpr int DIST_3_FACTOR = 300;   // dist 3 奖励
 // constexpr int DIST_4_FACTOR = 150;   // dist 4 吸引
 
-constexpr int TER_L1 = 3, TER_L2 = 1, TER_L1_LITE = 3;  // 分级领地
+constexpr int TER_L1 = 3, TER_L2 = 1;  // 分级领地
 
 constexpr int W_MOB_A = 800, W_MOB_B = 300, K_FLX = 5;  // 机动性
-constexpr int W_TER_A = 300, W_TER_B = 1000;            // 领地
-constexpr int W_PST_A = 20, W_PST_B = 0;                // 位置
+constexpr int W_TER_A = 500, W_TER_B = 1000;            // 领地
+constexpr int W_PST_A = 30, W_PST_B = 0;                // 位置
 constexpr int W_SYN_A = 4, W_SYN_B = 0;                 // 协同
 
 // // 全量衰减历史权重
