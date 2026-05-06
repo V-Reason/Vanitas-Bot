@@ -989,7 +989,7 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
         ++myCnt;
     }
     // 二级走步
-    myReach2 = generateQueenMoves(myReach1, allBlocked) & ~myReach1;
+    myReach2 = generateQueenMoves(myReach1, allBlocked) | myReach1;  // & ~myReach1;
 
     // 对方：
     // 一级走步 与 火力厚度 与 限位惩罚 计算
@@ -1023,15 +1023,11 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
         ++opCnt;
     }
     // 二级走步
-    opReach2 = generateQueenMoves(opReach1, allBlocked) & ~opReach1;
+    opReach2 = generateQueenMoves(opReach1, allBlocked) | opReach1;
 
-    // 一级领地
-    Bitmap myL1 = myReach1 & ~opReach1, opL1 = opReach1 & ~myReach1;
-    // 二级领地
-    Bitmap myL2 = myReach2 & ~opReach2, opL2 = opReach2 & ~myReach2;
     // 量化
-    int diffL1 = cntBit(myL1) - cntBit(opL1);
-    int diffL2 = cntBit(myL2) - cntBit(opL2);
+    int diffL1 = cntBit(myReach1) - cntBit(opReach1);
+    int diffL2 = cntBit(myReach2) - cntBit(opReach2);
     int diffTerritory = TER_L1 * diffL1 + TER_L2 * diffL2;
 
     int diffFireDepth = myFireDepth - opFireDepth;
