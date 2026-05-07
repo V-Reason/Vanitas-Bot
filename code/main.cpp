@@ -1,4 +1,4 @@
-#define DEBUG
+// #define DEBUG
 // #define CONSIS_TEST
 
 #pragma GCC optimize("O3,unroll-loops")

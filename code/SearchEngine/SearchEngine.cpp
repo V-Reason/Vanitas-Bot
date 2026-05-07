@@ -1,5 +1,5 @@
 // #define DEBUG
-#define MONITOR
+// #define MONITOR
 // #define MONITOR_MEM
 // #define MONITOR_LITE
 

@@ -1,5 +1,5 @@
 #pragma once
-#define LOGGER_ON
+// #define LOGGER_ON
 
 #ifdef LOGGER_ON
 #ifndef LOGGER_H
