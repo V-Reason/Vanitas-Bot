@@ -1,5 +1,5 @@
 // #define DEBUG
-// #define MONITOR
+#define MONITOR
 // #define MONITOR_MEM
 // #define MONITOR_LITE
 
@@ -108,6 +108,17 @@ bool isTimeout_final = false;
 // 静态内存池（SoA式）
 BitEngine::MoveList moveListPool[MAX_PLY]{};
 MoveWeight moveWeightPool[MAX_PLY][BitEngine::MAX_AMAZON_MOVE_TYPE]{};
+
+// // 全量衰减历史权重
+// inline void decayHTable() {
+//     // 行优先
+//     constexpr int sq = BitEngine::AMAZON_BOARD_SQUARE;
+//     constexpr int loopCnt = sq * sq * sq;
+//     MoveWeight* ptr = &HTable[0][0][0];
+//     for (int i = 0; i < loopCnt; ++i) {
+//         *(ptr + i) >>= 1;
+//     }
+// }
 
 #pragma region 状态机
 // 状态
@@ -394,6 +405,11 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
         if (TTable::read(initHash, ttData))
             globalBestMove = ttData.bestMove;
 
+        // 本层已完成，记录
+#ifdef MONITOR_LITE
+        statsLite.maxDepth = depth;
+#endif
+
         // 搜到了必胜解
         if (score >= TTable::SCORE_MATE_LOW)
             break;
@@ -406,11 +422,10 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
 // printf("TT命中: %llu\n", stat_tt_hits);
 // 监测探针
 #ifdef MONITOR_LITE
-    statsLite.maxDepth = depth;
 
     printf("搜索报告:\n");
-    printf("最大深度:\t %llu\n", statsLite.maxDepth);
-    printf("遍历总节点:\t %llu\n", statsLite.nodes);
+    printf("最大深度:\t %llu (最后完成层)\n", statsLite.maxDepth);
+    printf("遍历总节点:\t %llu (含所有IDS迭代)\n", statsLite.nodes);
 #endif
 
 #ifdef MONITOR
@@ -424,11 +439,11 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     printf("   全量eval\t %llu\n", stats.evals);
     printf("   轻量lite\t %llu\n", stats.evalsLite);
     printf("   残局end\t %llu\n", stats.evalsEnd);
-    printf("置换表成功:\t %llu\n", stats.ttHits);
+    printf("TT直接截断:\t %llu\n", stats.ttHits);
     printf("尝试空步:\t %llu\n", stats.nmpTrials);
     printf("空步剪枝:\t %llu\n", stats.nmpCuts);
     printf("总beta剪枝:\t %llu\n", stats.betaCutoffs);
-    printf("   置换表:\t %llu\n", stats.ttCutoffs);
+    printf("   TT走法:\t %llu\n", stats.ttCutoffs);
     printf("   杀手1:\t %llu\n", stats.killer1Cutoffs);
     printf("   杀手2:\t %llu\n", stats.killer2Cutoffs);
     printf("   历史表:\t %llu\n", stats.historyCutoffs);
@@ -472,13 +487,8 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
         double lmrMissRate = (double)stats.lmrMisses * 100.0 / stats.lmrTrials;
 
         printf("   尝试次数:\t\t %llu\n", stats.lmrTrials);
-        printf("   成功剪枝:\t\t %llu (%.2f%%)\n", stats.lmrCuts, lmrSuccessRate);
-        printf("   误判:\t\t %llu (%.2f%%)\n", stats.lmrMisses, lmrMissRate);
-
-        if (stats.betaCutoffs > 0) {
-            double lmrContribution = (double)stats.lmrCuts * 100.0 / stats.betaCutoffs;
-            printf("   LMR 贡献剪枝占比:\t %.3f%%\n", lmrContribution);
-        }
+        printf("   正确跳过:\t\t %llu (%.2f%%)\n", stats.lmrCuts, lmrSuccessRate);
+        printf("   误判需重搜:\t\t %llu (%.2f%%)\n", stats.lmrMisses, lmrMissRate);
     } else {
         printf("   未触发 LMR\n");
     }
@@ -871,7 +881,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             }
             // 更新历史
             using namespace BitEngine;
-            HTable[getFrom(move)][getTo(move)][getArrow(move)] += (depth * depth * 64);
+            HTable[getFrom(move)][getTo(move)][getArrow(move)] += (depth * 500);
             // 剪枝
             break;
         }
@@ -922,8 +932,13 @@ TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
     Bitmap empty = ~allBlocked;
     int emptyCnt = cntBit(empty);
 
-    if (emptyCnt <= ENDGAME_PIECES)
+    if (emptyCnt <= ENDGAME_PIECES) {
+#ifdef MONITOR
+        --stats.evalsLite;
+        ++stats.evalsEnd;
+#endif
         return evaluateEndGame(board, empty, allBlocked, myAmazons, opAmazons);
+    }
 
     // 动态权重
     int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;
@@ -1006,8 +1021,13 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     int emptyCnt = cntBit(empty);
 
     // 残局特化
-    if (emptyCnt <= ENDGAME_PIECES)
+    if (emptyCnt <= ENDGAME_PIECES) {
+#ifdef MONITOR
+        --stats.evals;
+        ++stats.evalsEnd;
+#endif
         return evaluateEndGame(board, empty, allBlocked, myAmazons, opAmazons);
+    }
 
     // 普通局面
 
@@ -1176,12 +1196,6 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
                               BitEngine::Bitmap blocked,
                               BitEngine::Bitmap myAmazons,
                               BitEngine::Bitmap opAmazons) {
-    // 监测探针
-#ifdef MONITOR
-    --stats.evals;
-    ++stats.evalsEnd;
-#endif
-
     using namespace BitEngine;
     // 缓存
     Bitmap visited = 0;

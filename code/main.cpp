@@ -1,5 +1,5 @@
-// #define DEBUG
-#define CONSIS_TEST
+#define DEBUG
+// #define CONSIS_TEST
 
 #pragma GCC optimize("O3,unroll-loops")
 #pragma GCC target("avx2,bmi,bmi2,popcnt,lzcnt")
@@ -48,7 +48,8 @@ int main() {
     IOEngine::readInputAndRecover(board);
 
 #if defined(DEBUG) || defined(CONSIS_TEST)
-    switchToBoard(0, board);
+    int testBoardNum = 0;
+    switchToBoard(testBoardNum, board);
 #endif
 #ifdef LOGGER_ON
     Logger::showBitboard(board);
@@ -56,6 +57,11 @@ int main() {
 
     BitEngine::Move chosenMove;
     chosenMove = SearchEngine::search(board);
+
+#ifdef DEBUG
+    printf("当前模拟: 第 %d 局面\n", testBoardNum);
+    printf("选择了走法:\n");
+#endif
 
     IOEngine::outputAnswer(chosenMove);
 

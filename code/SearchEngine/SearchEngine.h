@@ -39,13 +39,13 @@ constexpr int N_BEST_DEPTH_1 = 1;          // N-Best的深度确值
 constexpr int N_BEST_DEPTH_2 = 2;          // N-Best的深度确值
 constexpr int N_BEST_RANK_1 = 15;          // 动态调整，阈值1
 constexpr int N_BEST_RANK_2 = 30;          // 动态调整，阈值2
-constexpr int N_BEST_RANK_3 = 40; /*60;*/  // 动态调整，阈值3
+constexpr int N_BEST_RANK_3 = 45; /*60;*/  // 动态调整，阈值3
 // LMR晚期移动缩减
-constexpr int ALLOW_LMR_DEPTH = 3;  // 允许LMR的深度阈值
-constexpr int ALLOW_LMR_RANK = 6;   // 允许LMR的走法排名
-constexpr int LMR_DEPTH_DECAY = 1;  // LMR的深度衰减力度，基础值
-constexpr int LMR_RANK_1 = 10;      // 动态调整，阈值1
-constexpr int LMR_RANK_2 = 30;      // 动态调整，阈值2
+constexpr int ALLOW_LMR_DEPTH = 3;        // 允许LMR的深度阈值
+constexpr int ALLOW_LMR_RANK = 8; /*6;*/  // 允许LMR的走法排名
+constexpr int LMR_DEPTH_DECAY = 1;        // LMR的深度衰减力度，基础值
+constexpr int LMR_RANK_1 = 10;            // 动态调整，阈值1
+constexpr int LMR_RANK_2 = 30;            // 动态调整，阈值2
 // [ 弃用 ] 空步剪枝（亚马逊棋可能不适合空步）
 // 允许深度设置为极大值彻底关闭空步
 constexpr int ALLOW_NULLMOVE_DEPTH = 1000; /*3;*/  // 允许空步剪枝的深度阈值
@@ -185,21 +185,6 @@ constexpr int W_MOB_A = 800, W_MOB_B = 300, K_FLX = 5;  // 机动性
 constexpr int W_TER_A = 500, W_TER_B = 1000;            // 领地
 constexpr int W_PST_A = 30, W_PST_B = 0;                // 位置
 constexpr int W_SYN_A = 10, W_SYN_B = 0;                // 协同
-
-// // 全量衰减历史权重
-// inline void decayHTable() {
-//     // 行优先
-//     constexpr int sq = BitEngine::AMAZON_BOARD_SQUARE;
-//     for (int from = 0; from < sq; ++from) {
-//         for (int to = 0; to < sq; ++to) {
-//             for (int arrow = 0; arrow < sq; ++arrow) {
-//                 // 减半
-//                 HTable[from][to][arrow] = std::max(0, HTable[from][to][arrow] >> 1);  //
-//                 max防止变负
-//             }
-//         }
-//     }
-// }
 
 }  // namespace VanitasBot::SearchEngine
 
