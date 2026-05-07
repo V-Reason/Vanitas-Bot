@@ -1,5 +1,5 @@
 // #define DEBUG
-// #define CONSIS_TEST
+#define CONSIS_TEST
 
 #pragma GCC optimize("O3,unroll-loops")
 #pragma GCC target("avx2,bmi,bmi2,popcnt,lzcnt")
@@ -24,7 +24,7 @@ void switchToBoard(int which, BitEngine::BitBoard& board);
 int main() {
 #ifdef CONSIS_TEST
     BitEngine::BitBoard testBoard;
-    for (int i = 0; i <= 12; ++i) {
+    for (int i = 0; i <= 13; ++i) {
         switchToBoard(i, testBoard);
         // Logger::showBitboard(testBoard);
         int full = SearchEngine::evaluate(testBoard);
@@ -75,10 +75,10 @@ void switchToBoard(int which, BitEngine::BitBoard& board) {
             IOEngine::initBoard(board);
             break;
         case 1:
-            // 均势开局
-            board.blacks = 0x0000240000240000ULL;  // (2,2), (5,2), (2,5), (5,5) - 略微内聚
-            board.whites = 0x8100000000000081ULL;  // (0,0), (7,0), (0,7), (7,7) - 极度分散
-            board.arrows = 0x0000001818000000ULL;  // 中心 4 格有箭
+            // 负分极端：黑方四角被封锁，白方占据半中心，所有维度叠加负向
+            board.blacks = 0x8100000000000081ULL;  // a1, h1, a8, h8（四角 PST=-20×4）
+            board.whites = 0x0018000000001800ULL;  // d2, e2, d7, e7（半中心 PST=+15×4）
+            board.arrows = 0x0081000000000042ULL;  // b1, g1, a7, h7（封锁黑方出逃方向）
             board.player = BitEngine::Player::BLACK;
             break;
 
@@ -147,10 +147,10 @@ void switchToBoard(int which, BitEngine::BitBoard& board) {
             break;
 
         case 10:
-            // 被分割的牢笼 (Absolute Domain & Melee)
-            board.blacks = 0x0000000000000107ULL;  // 黑方主力和混战代表
-            board.whites = 0xE080000000000000ULL;  // 白方主力和混战代表
-            board.arrows = 0x1F7FFF0808FFFEF8ULL;  // 将棋盘彻底焊死的物理隔离墙
+            // 阶段中点：phase=128，三条 lerp 曲线分歧最大处
+            board.blacks = 0x0000002400180000ULL;  // d3, e3, c5, f5
+            board.whites = 0x0000001800240000ULL;  // c3, f3, d5, e5
+            board.arrows = 0x00C34200C342C342ULL;  // 边缘走廊封锁 ×18，empty=38
             board.player = BitEngine::Player::BLACK;
             break;
         case 11:
@@ -167,6 +167,15 @@ void switchToBoard(int which, BitEngine::BitBoard& board) {
             board.whites = 0x8000000000000000ULL;  // 白后在 (7,7)
             // 构造：左上角有一片 6 格的空地只属于黑方，白方被完全封死
             board.arrows = 0xFFFFFCFCF0F0F0F0ULL;
+            board.player = BitEngine::Player::BLACK;
+            break;
+
+        case 13:
+            // 方向/领地限位脱耦：a1 后仅剩 NE 方向，king-mob=1 触发 TRAPPED_DIR
+            // 但 queen 沿 NE 可达 6 格，ter=6 ≥ 5 不触发 TRAPPED_TER
+            board.blacks = 0x8000010000000011ULL;  // a1(0), e1(4), a6(40), h8(63)
+            board.whites = 0x2580000000000000ULL;  // a8(56), c8(58), f8(61), h7(55)
+            board.arrows = 0x0000000000000102ULL;  // b1(1), a2(8) 封堵 E 和 N
             board.player = BitEngine::Player::BLACK;
             break;
     }

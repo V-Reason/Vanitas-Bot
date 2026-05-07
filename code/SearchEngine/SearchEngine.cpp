@@ -807,6 +807,7 @@ TTable::Score PVS(BitEngine::BitBoard& board,
             ++stats.lmrTrials;
 #endif
             // lmr禁止空步，减少误判率
+            lmrDepth = std::max(1, lmrDepth);  // 至少搜一层
             score = -PVS(board, nexHash, lmrDepth, ply + 1, -alpha - 1, -alpha, false);
             if (score <= alpha) {  // 预期判断
                 fullSearch = false;
@@ -903,7 +904,83 @@ TTable::Score PVS(BitEngine::BitBoard& board,
 
 // 轻量级评估函数（不用于残局）
 TTable::Score evaluateLite(const BitEngine::BitBoard& board) {
-    return evaluate(board);
+#ifdef MONITOR
+    ++stats.evalsLite;
+#endif
+    using namespace BitEngine;
+
+    Bitmap myAmazons, opAmazons;
+    if (board.player == Player::BLACK) {
+        myAmazons = board.blacks;
+        opAmazons = board.whites;
+    } else {
+        myAmazons = board.whites;
+        opAmazons = board.blacks;
+    }
+
+    Bitmap allBlocked = board.allBlocked();
+    Bitmap empty = ~allBlocked;
+    int emptyCnt = cntBit(empty);
+
+    if (emptyCnt <= ENDGAME_PIECES)
+        return evaluateEndGame(board, empty, allBlocked, myAmazons, opAmazons);
+
+    // 动态权重
+    int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;
+    phase = std::clamp(phase, 0, PHASE_SCALE);
+    int w_mob = easeOutLerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
+    int w_ter = easeInLerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
+    int w_pst = linearLerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
+
+    // 机动性
+    int diffMobility
+        = cntBit(getKingMoves(myAmazons, allBlocked)) - cntBit(getKingMoves(opAmazons, allBlocked));
+
+    // 领地
+    Bitmap myReach1 = generateQueenMoves(myAmazons, allBlocked);
+    Bitmap opReach1 = generateQueenMoves(opAmazons, allBlocked);
+    Bitmap myReach2 = generateQueenMoves(myReach1, allBlocked) | myReach1;
+    Bitmap opReach2 = generateQueenMoves(opReach1, allBlocked) | opReach1;
+    int diffL1 = cntBit(myReach1) - cntBit(opReach1);
+    int diffL2 = cntBit(myReach2) - cntBit(opReach2);
+    int diffTerritory = TER_L1 * diffL1 + TER_L2 * diffL2;
+
+    // PST
+    int diffPST = evaluatePST(myAmazons) - evaluatePST(opAmazons);
+
+    // 方向限位惩罚
+    int myTrapped = 0, opTrapped = 0;
+    Bitmap me = myAmazons;
+    while (me) {
+        int mob = cntBit(getKingMoves(makeMask(fnlBit(me)), allBlocked));
+        if (mob < TRAPPED_DIR_PIECES)
+            myTrapped += TRAPPED_DIR_PENALTY[mob];
+        kicBit(me);
+    }
+    Bitmap op = opAmazons;
+    while (op) {
+        int mob = cntBit(getKingMoves(makeMask(fnlBit(op)), allBlocked));
+        if (mob < TRAPPED_DIR_PIECES)
+            opTrapped += TRAPPED_DIR_PENALTY[mob];
+        kicBit(op);
+    }
+
+    // 废后警告
+    int myTotalArea = cntBit(myReach1);
+    int opTotalArea = cntBit(opReach1);
+    int myQueenCnt = cntBit(myAmazons);
+    int opQueenCnt = cntBit(opAmazons);
+    // 小于期望值则扣警告分
+    int myWarning = (myTotalArea < 12 * myQueenCnt) ? W_REDUNDANT_PENALTY : 0;
+    int opWarning = (opTotalArea < 12 * opQueenCnt) ? W_REDUNDANT_PENALTY : 0;
+
+    // clang-format off
+    return w_mob * diffMobility
+         + w_ter * diffTerritory
+         + w_pst * diffPST
+         - (myTrapped - opTrapped)
+         - (myWarning - opWarning);
+    // clang-format on
 }
 
 TTable::Score evaluate(const BitEngine::BitBoard& board) {
@@ -937,10 +1014,10 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     // 动态权重，平滑插值
     int phase = ((BEGINGAME_PIECES - emptyCnt) * PHASE_SCALE) / PHASE_SPAN;  // 局面进度
     phase = std::clamp(phase, 0, PHASE_SCALE);                               // 夹挤，防止外推
-    int w_mob = lerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
-    int w_ter = lerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
-    int w_pst = lerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
-    int w_syn = lerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
+    int w_mob = easeOutLerp(W_MOB_A, W_MOB_B, phase, PHASE_SCALE);
+    int w_ter = easeInLerp(W_TER_A, W_TER_B, phase, PHASE_SCALE);
+    int w_pst = linearLerp(W_PST_A, W_PST_B, phase, PHASE_SCALE);
+    int w_syn = linearLerp(W_SYN_A, W_SYN_B, phase, PHASE_SCALE);
 
     // 机动性评估
     int myMobility = cntBit(getKingMoves(myAmazons, allBlocked));
@@ -969,13 +1046,13 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
 
         // 领地限制惩罚
         int ter = cntBit(myMoves[myCnt]);
-        if (ter <= TRAPPED_TER_PIECES)
-            myTrappedTerPenalty += TRAPPED_TER_PENALTY * (TRAPPED_TER_PIECES - ter + 1);
+        if (ter < TRAPPED_TER_PIECES)
+            myTrappedTerPenalty += TRAPPED_TER_PENALTY[ter];
 
         // 方向限制惩罚
         int mob = cntBit(getKingMoves(mask, allBlocked));
-        if (mob <= TRAPPED_DIR_PIECES)
-            myTrappedDirPenalty += TRAPPED_DIR_PENALTY * (TRAPPED_DIR_PIECES - mob + 1);
+        if (mob < TRAPPED_DIR_PIECES)
+            myTrappedDirPenalty += TRAPPED_DIR_PENALTY[mob];
 
         // 一级走步积累
         myReach1 |= myMoves[myCnt];
@@ -1003,13 +1080,13 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
 
         // 领地限制惩罚
         int ter = cntBit(opMoves[opCnt]);
-        if (ter <= TRAPPED_TER_PIECES)
-            opTrappedTerPenalty += TRAPPED_TER_PENALTY * (TRAPPED_TER_PIECES - ter + 1);
+        if (ter < TRAPPED_TER_PIECES)
+            opTrappedTerPenalty += TRAPPED_TER_PENALTY[ter];
 
         // 方向限制惩罚
         int mob = cntBit(getKingMoves(mask, allBlocked));
-        if (mob <= TRAPPED_DIR_PIECES)
-            opTrappedDirPenalty += TRAPPED_DIR_PENALTY * (TRAPPED_DIR_PIECES - mob + 1);
+        if (mob < TRAPPED_DIR_PIECES)
+            opTrappedDirPenalty += TRAPPED_DIR_PENALTY[mob];
 
         // 一级走步积累
         opReach1 |= opMoves[opCnt];
@@ -1057,26 +1134,26 @@ TTable::Score evaluate(const BitEngine::BitBoard& board) {
     Bitmap layer1, layer2, layer3;
     int d1, d2, d3;
 
-    // 己方：
+    // 己方（障碍感知：防止箭墙隔开的皇后被误判为过近）：
     //  一圈
-    layer1 = getKingMoves(myAmazons, 0);
+    layer1 = getKingMoves(myAmazons, allBlocked);
     d1 = cntBit(layer1 & myAmazons);
     //  二圈
-    layer2 = getKingMoves(layer1, myAmazons);
+    layer2 = getKingMoves(layer1, myAmazons | allBlocked);
     d2 = cntBit(layer2 & myAmazons);
     //  三圈
-    layer3 = getKingMoves(layer2, layer1 | myAmazons);
+    layer3 = getKingMoves(layer2, layer1 | myAmazons | allBlocked);
     d3 = cntBit(layer3 & myAmazons);
 
     // 对方：
     //  一圈
-    layer1 = getKingMoves(opAmazons, 0);
+    layer1 = getKingMoves(opAmazons, allBlocked);
     d1 -= cntBit(layer1 & opAmazons);
     //  二圈
-    layer2 = getKingMoves(layer1, opAmazons);
+    layer2 = getKingMoves(layer1, opAmazons | allBlocked);
     d2 -= cntBit(layer2 & opAmazons);
     //  三圈
-    layer3 = getKingMoves(layer2, layer1 | opAmazons);
+    layer3 = getKingMoves(layer2, layer1 | opAmazons | allBlocked);
     d3 -= cntBit(layer3 & opAmazons);
 
     // 计算协同分

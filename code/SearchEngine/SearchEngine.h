@@ -34,12 +34,12 @@ constexpr int IID_DEPTH_DECAY = 2;  // IID的深度裁切力度
 constexpr int ALLOW_FP_DEPTH = 3;               // 允许fp的深度阈值
 constexpr int FP_MARGIN_BASE = 8000; /*1250;*/  // 每一步棋的富余基数，即每步最多能拿多少分
 // N-Best截断
-constexpr int ALLOW_N_BEST = 3;    // 允许N-Best的深度阈值
-constexpr int N_BEST_DEPTH_1 = 1;  // N-Best的深度确值
-constexpr int N_BEST_DEPTH_2 = 2;  // N-Best的深度确值
-constexpr int N_BEST_RANK_1 = 15;  // 动态调整，阈值1
-constexpr int N_BEST_RANK_2 = 30;  // 动态调整，阈值2
-constexpr int N_BEST_RANK_3 = 60;  // 动态调整，阈值3
+constexpr int ALLOW_N_BEST = 3;            // 允许N-Best的深度阈值
+constexpr int N_BEST_DEPTH_1 = 1;          // N-Best的深度确值
+constexpr int N_BEST_DEPTH_2 = 2;          // N-Best的深度确值
+constexpr int N_BEST_RANK_1 = 15;          // 动态调整，阈值1
+constexpr int N_BEST_RANK_2 = 30;          // 动态调整，阈值2
+constexpr int N_BEST_RANK_3 = 40; /*60;*/  // 动态调整，阈值3
 // LMR晚期移动缩减
 constexpr int ALLOW_LMR_DEPTH = 3;  // 允许LMR的深度阈值
 constexpr int ALLOW_LMR_RANK = 6;   // 允许LMR的走法排名
@@ -52,11 +52,11 @@ constexpr int ALLOW_NULLMOVE_DEPTH = 1000; /*3;*/  // 允许空步剪枝的深�
 constexpr int NULLMOVE_R = 3;                      // 空步子树深度衰减常量
 // 渴望窗口
 constexpr int ASPIRATION_DEPTH = 3;       // 开始层数
-constexpr int ASPIRATION_WINDOW = 10000;  // 宽度，容忍度
+constexpr int ASPIRATION_WINDOW = 15000;  // 宽度，容忍度
 // 超时标志
 extern bool isTimeout_final;
 // 最大深度
-constexpr int MAX_DEPTH = 500;  // 内存池保证不再爆栈，但没必要再往上了
+constexpr int MAX_DEPTH = 128;  // 内存池保证不再爆栈，但没必要再往上了
 // 最大PLY
 constexpr int MAX_PLY = 128;  // 理论上MAX_PLY不应该小于MAX_DEPTH，否则会导致内存池访问越界
 // 超时检查间隔
@@ -100,14 +100,14 @@ TTable::Score evaluateEndGame(const BitEngine::BitBoard& board,
 // Piece-Square Tables 子力位置表
 // clang-format off
 constexpr int PST[BitEngine::AMAZON_BOARD_SQUARE]={
-    -10, -10, -10, -10, -10, -10, -10, -10,
-    -10,   5,  10,  10,  10,  10,   5, -10,
-    -10,  10,  15,  15,  15,  15,  10, -10,
-    -10,  10,  15,  10,  10,  15,  10, -10,
-    -10,  10,  15,  10,  10,  15,  10, -10,
-    -10,  10,  15,  15,  15,  15,  10, -10,
-    -10,   5,  10,  10,  10,  10,   5, -10,
-    -10, -10, -10, -10, -10, -10, -10, -10,
+    -20, -12,  -8,  -6,  -6,  -8, -12, -20,
+    -12,  -6,   2,   5,   5,   2,  -6, -12,
+     -8,   2,  12,  15,  15,  12,   2,  -8,
+     -6,   5,  15,  10,  10,  15,   5,  -6,
+     -6,   5,  15,  10,  10,  15,   5,  -6,
+     -8,   2,  12,  15,  15,  12,   2,  -8,
+    -12,  -6,   2,   5,   5,   2,  -6, -12,
+    -20, -12,  -8,  -6,  -6,  -8, -12, -20,
 };
 // clang-format on
 
@@ -123,8 +123,20 @@ inline int evaluatePST(BitEngine::Bitmap amazons) {
 
 // 平滑插值函数（整数版）（无夹挤）
 // 系数 t = phase / range
-inline int lerp(int a, int b, int phase, int scale) {
+// 线性插值 y=x
+inline int linearLerp(int a, int b, int phase, int scale) {
     return a + ((b - a) * phase) / scale;
+}
+// 缓入插值 y=x^2
+inline int easeInLerp(int a, int b, int phase, int scale) {
+    int easeInPhase = (phase * phase) / scale;
+    return a + ((b - a) * easeInPhase) / scale;
+}
+// 缓出插值 y=1-(1-x)^x
+inline int easeOutLerp(int a, int b, int phase, int scale) {
+    int invPhase = scale - phase;
+    int easeOutPhase = scale - ((invPhase * invPhase) / scale);
+    return a + ((b - a) * easeOutPhase) / scale;
 }
 
 // 局面情况边界
@@ -142,10 +154,23 @@ constexpr int PHASE_SPAN = BEGINGAME_PIECES - ENDGAME_PIECES;
 constexpr int ABSOLUTE_DOMAIN_FACTOR = 2000;              // 绝对领域
 constexpr int MELEE_W_TER = ABSOLUTE_DOMAIN_FACTOR / 10;  // 混战_领地
 
-constexpr int TRAPPED_TER_PIECES = 5;      // 皇后限位(领地)阈值
-constexpr int TRAPPED_TER_PENALTY = 1000;  // 皇后限位(领地)惩罚
-constexpr int TRAPPED_DIR_PIECES = 3;      // 皇后限位(方向)阈值
-constexpr int TRAPPED_DIR_PENALTY = 1000;  // 皇后限位(方向)惩罚
+constexpr int TRAPPED_TER_PIECES = 5;  // 皇后限位(领地)阈值
+constexpr int TRAPPED_TER_BASE = 100;  // 皇后限位(领地)惩罚
+constexpr int TRAPPED_TER_PENALTY[TRAPPED_TER_PIECES] = {
+    (TRAPPED_TER_PIECES - 0) * (TRAPPED_TER_PIECES - 0) * TRAPPED_TER_BASE,  // 2500
+    (TRAPPED_TER_PIECES - 1) * (TRAPPED_TER_PIECES - 1) * TRAPPED_TER_BASE,  // 1600
+    (TRAPPED_TER_PIECES - 2) * (TRAPPED_TER_PIECES - 2) * TRAPPED_TER_BASE,  // 900
+    (TRAPPED_TER_PIECES - 3) * (TRAPPED_TER_PIECES - 3) * TRAPPED_TER_BASE,  // 400
+    (TRAPPED_TER_PIECES - 4) * (TRAPPED_TER_PIECES - 4) * TRAPPED_TER_BASE,  // 100
+};
+
+constexpr int TRAPPED_DIR_PIECES = 3;  // 皇后限位(方向)阈值
+constexpr int TRAPPED_DIR_BASE = 400;  // 皇后限位(方向)惩罚
+constexpr int TRAPPED_DIR_PENALTY[TRAPPED_DIR_PIECES] = {
+    (TRAPPED_DIR_PIECES - 0) * (TRAPPED_DIR_PIECES - 0) * TRAPPED_DIR_BASE,  // 3600
+    (TRAPPED_DIR_PIECES - 1) * (TRAPPED_DIR_PIECES - 1) * TRAPPED_DIR_BASE,  // 1600
+    (TRAPPED_DIR_PIECES - 2) * (TRAPPED_DIR_PIECES - 2) * TRAPPED_DIR_BASE,  // 400
+};
 
 constexpr int W_REDUNDANT_PENALTY = 3000;  // 废皇后惩罚
 
@@ -159,7 +184,7 @@ constexpr int TER_L1 = 3, TER_L2 = 1;  // 分级领地
 constexpr int W_MOB_A = 800, W_MOB_B = 300, K_FLX = 5;  // 机动性
 constexpr int W_TER_A = 500, W_TER_B = 1000;            // 领地
 constexpr int W_PST_A = 30, W_PST_B = 0;                // 位置
-constexpr int W_SYN_A = 4, W_SYN_B = 0;                 // 协同
+constexpr int W_SYN_A = 10, W_SYN_B = 0;                // 协同
 
 // // 全量衰减历史权重
 // inline void decayHTable() {
