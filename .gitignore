@@ -122,3 +122,6 @@ collected_files/
 
 # VSCode插件生成产物
 .VSCodeCounter/
+
+# Claude Code文件
+.claudeignore
