@@ -5,6 +5,8 @@
 
 #include "SearchEngine.h"
 
+#include "Openingbook/Openingbook.h"
+
 #ifdef MONITOR_MEM
 #ifdef _WIN32
 #define PSAPI_VERSION 1
@@ -340,11 +342,24 @@ BitEngine::Move search(BitEngine::BitBoard& board) {
     // 重置计时器
     // Utilities::Timer::resetStartTime();
 
-    // TODO: 开局库检查
+    // 初始化开局库
+    OpeningBook::init();
+
+    // 生成哈希值
+    HashEngine::Key initHash = HashEngine::generateHash(board);
+
+    // 开局库查找（仅在前五回合使用，即箭矢数量 <= 10）
+    // 黑方第一步不使用开局库
+    int arrowCount = BitEngine::cntBit(board.arrows);
+    if (arrowCount <= 10 && !(board.player == BitEngine::Player::BLACK && arrowCount == 0)) {
+        BitEngine::Move openingMove = OpeningBook::lookup(board, initHash);
+        if (openingMove != 0) {
+            return openingMove;
+        }
+    }
 
     // 初始化哈希
     HashEngine::init();
-    HashEngine::Key initHash = HashEngine::generateHash(board);
 
     // IDS迭代加深搜索
     BitEngine::Move globalBestMove = 0;
